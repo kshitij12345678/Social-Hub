@@ -1,10 +1,11 @@
-import React, { useState } from 'react';
-import { Edit2, MapPin, Calendar, Link as LinkIcon } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Edit2, MapPin, Calendar, Link as LinkIcon, GraduationCap, Phone, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useAuth } from '@/contexts/AuthContext';
 import { User } from '@/lib/mockData';
 
 interface UserProfileProps {
@@ -14,16 +15,118 @@ interface UserProfileProps {
 
 const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false }) => {
   const [isEditing, setIsEditing] = useState(false);
+  const [editingField, setEditingField] = useState<string | null>(null);
   const [editedUser, setEditedUser] = useState(user);
+  const [isLoading, setIsLoading] = useState(false);
+  const [isUploadingImage, setIsUploadingImage] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { updateProfile, uploadProfilePicture } = useAuth();
 
-  const handleSave = () => {
-    // In a real app, this would save to a backend
-    setIsEditing(false);
+  // Sync editedUser with user prop changes
+  useEffect(() => {
+    setEditedUser(user);
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!isOwnProfile) return;
+    
+    const profileData = {
+      full_name: editedUser.name,
+      bio: editedUser.bio,
+      education_school: editedUser.education_school,
+      education_degree: editedUser.education_degree,
+      location: editedUser.location,
+      phone: editedUser.phone,
+    };
+    
+    console.log('Saving profile with data:', profileData);
+    
+    // Check if data has actually changed
+    const hasChanges = (
+      profileData.full_name !== user.name ||
+      profileData.bio !== user.bio ||
+      profileData.education_school !== user.education_school ||
+      profileData.education_degree !== user.education_degree ||
+      profileData.location !== user.location ||
+      profileData.phone !== user.phone
+    );
+    
+    if (!hasChanges) {
+      console.log('No changes detected, skipping save');
+      setIsEditing(false);
+      setEditingField(null);
+      return;
+    }
+    
+    setIsLoading(true);
+    try {
+      // Update profile with all fields
+      await updateProfile(profileData);
+      
+      console.log('Profile update successful');
+      setIsEditing(false);
+      setEditingField(null);
+    } catch (error) {
+      console.error('Failed to update profile:', error);
+      alert('Failed to update profile. Please try again.');
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleCancel = () => {
     setEditedUser(user);
     setIsEditing(false);
+    setEditingField(null);
+  };
+
+  const startEditingField = (fieldName: string) => {
+    setEditingField(fieldName);
+    setIsEditing(true);
+  };
+
+  const startEditingAll = () => {
+    setEditingField(null);
+    setIsEditing(true);
+  };
+
+  const handleImageUpload = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
+  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+    if (!allowedTypes.includes(file.type)) {
+      alert('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.');
+      return;
+    }
+
+    // Validate file size (5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size too large. Maximum size is 5MB.');
+      return;
+    }
+
+    setIsUploadingImage(true);
+    try {
+      await uploadProfilePicture(file);
+      console.log('Profile picture uploaded successfully');
+    } catch (error) {
+      console.error('Failed to upload profile picture:', error);
+      alert('Failed to upload profile picture. Please try again.');
+    } finally {
+      setIsUploadingImage(false);
+      // Reset the input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
   };
 
   return (
@@ -36,37 +139,234 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
 
         {/* Profile Picture */}
         <div className="relative -mt-20 mb-4">
-          <div className="w-24 h-24 mx-auto rounded-full bg-card shadow-glow flex items-center justify-center text-4xl border-4 border-card">
-            {user.avatar}
+          <div className="w-24 h-24 mx-auto rounded-full bg-card shadow-glow flex items-center justify-center text-4xl border-4 border-card overflow-hidden relative group">
+            {user.profile_picture_url ? (
+              <img 
+                src={user.profile_picture_url} 
+                alt={user.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span className="text-foreground">{user.avatar}</span>
+            )}
+            
+            {/* Upload overlay for own profile */}
+            {isOwnProfile && (
+              <>
+                <div 
+                  className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
+                  onClick={handleImageUpload}
+                  title="Click to upload profile picture"
+                >
+                  {isUploadingImage ? (
+                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
+                  ) : (
+                    <Camera className="h-6 w-6 text-white" />
+                  )}
+                </div>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </>
+            )}
           </div>
+          {isOwnProfile && (
+            <p className="text-center text-xs text-muted-foreground mt-2">
+              Hover and click to upload
+            </p>
+          )}
         </div>
 
         {/* User Info */}
         <div className="space-y-2">
           {isEditing ? (
             <div className="space-y-3">
-              <Input
-                value={editedUser.name}
-                onChange={(e) => setEditedUser({ ...editedUser, name: e.target.value })}
-                className="text-center text-xl font-bold"
-              />
-              <Input
-                value={editedUser.email}
-                onChange={(e) => setEditedUser({ ...editedUser, email: e.target.value })}
-                className="text-center text-muted-foreground"
-              />
-              <Textarea
-                value={editedUser.bio}
-                onChange={(e) => setEditedUser({ ...editedUser, bio: e.target.value })}
-                className="text-center resize-none"
-                rows={3}
-              />
+              {/* Name field - only show if editing all or name specifically */}
+              {(editingField === null || editingField === 'name') && (
+                <Input
+                  value={editedUser.name}
+                  onChange={(e) => setEditedUser({ ...editedUser, name: e.target.value })}
+                  className="text-center text-xl font-bold"
+                  placeholder="Enter your name"
+                />
+              )}
+              
+              {/* Show name in display mode if not editing it specifically */}
+              {isEditing && editingField !== null && editingField !== 'name' && (
+                <h1 className="text-2xl font-bold text-foreground">{user.name}</h1>
+              )}
+              
+              {/* Email is always read-only */}
+              {(editingField === null || editingField === 'email') && (
+                <Input
+                  value={user.email}
+                  disabled
+                  className="text-center text-muted-foreground bg-muted"
+                  placeholder="Email (not editable)"
+                />
+              )}
+              
+              {/* Show email in display mode if not editing all fields */}
+              {isEditing && editingField !== null && editingField !== 'email' && (
+                <p className="text-muted-foreground">{user.email}</p>
+              )}
+
+              {/* Bio field */}
+              {(editingField === null || editingField === 'bio') && (
+                <Textarea
+                  value={editedUser.bio || ''}
+                  onChange={(e) => setEditedUser({ ...editedUser, bio: e.target.value })}
+                  className="text-center resize-none"
+                  rows={3}
+                  placeholder="Tell us about yourself..."
+                />
+              )}
+              
+              {/* Additional Profile Fields - only show if editing all or specific field */}
+              <div className="grid grid-cols-1 gap-3 mt-4">
+                {(editingField === null || editingField === 'education') && (
+                  <>
+                    <Input
+                      value={editedUser.education_school || ''}
+                      onChange={(e) => setEditedUser({ ...editedUser, education_school: e.target.value })}
+                      className="text-center"
+                      placeholder="School/University"
+                    />
+                    <Input
+                      value={editedUser.education_degree || ''}
+                      onChange={(e) => setEditedUser({ ...editedUser, education_degree: e.target.value })}
+                      className="text-center"
+                      placeholder="Degree/Field of Study"
+                    />
+                  </>
+                )}
+                
+                {(editingField === null || editingField === 'location') && (
+                  <Input
+                    value={editedUser.location || ''}
+                    onChange={(e) => setEditedUser({ ...editedUser, location: e.target.value })}
+                    className="text-center"
+                    placeholder="Lives in"
+                  />
+                )}
+                
+                {(editingField === null || editingField === 'phone') && (
+                  <Input
+                    value={editedUser.phone || ''}
+                    onChange={(e) => setEditedUser({ ...editedUser, phone: e.target.value })}
+                    className="text-center"
+                    placeholder="Phone number"
+                  />
+                )}
+              </div>
             </div>
           ) : (
             <>
               <h1 className="text-2xl font-bold text-foreground">{user.name}</h1>
               <p className="text-muted-foreground">{user.email}</p>
-              <p className="text-foreground leading-relaxed">{user.bio}</p>
+              
+              {/* Bio */}
+              {user.bio ? (
+                <div className="flex items-center justify-center space-x-2">
+                  <p className="text-foreground leading-relaxed">{user.bio}</p>
+                  {isOwnProfile && (
+                    <button
+                      onClick={() => startEditingField('bio')}
+                      className="text-muted-foreground hover:text-primary transition-colors"
+                    >
+                      <Edit2 className="h-3 w-3" />
+                    </button>
+                  )}
+                </div>
+              ) : isOwnProfile ? (
+                <button
+                  onClick={() => startEditingField('bio')}
+                  className="text-muted-foreground hover:text-primary transition-colors cursor-pointer underline"
+                >
+                  Add bio
+                </button>
+              ) : null}
+              
+              {/* Additional Profile Info in Display Mode */}
+              <div className="mt-4 space-y-2 text-sm">
+                {/* Education */}
+                {user.education_school ? (
+                  <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                    <GraduationCap className="h-4 w-4" />
+                    <span>
+                      {user.education_degree ? `${user.education_degree} at ${user.education_school}` : user.education_school}
+                    </span>
+                    {isOwnProfile && (
+                      <button
+                        onClick={() => startEditingField('education')}
+                        className="text-muted-foreground hover:text-primary transition-colors ml-2"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : isOwnProfile ? (
+                  <button
+                    onClick={() => startEditingField('education')}
+                    className="flex items-center justify-center space-x-2 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <GraduationCap className="h-4 w-4" />
+                    <span className="underline">Add education</span>
+                  </button>
+                ) : null}
+                
+                {/* Location */}
+                {user.location ? (
+                  <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                    <MapPin className="h-4 w-4" />
+                    <span>Lives in {user.location}</span>
+                    {isOwnProfile && (
+                      <button
+                        onClick={() => startEditingField('location')}
+                        className="text-muted-foreground hover:text-primary transition-colors ml-2"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : isOwnProfile ? (
+                  <button
+                    onClick={() => startEditingField('location')}
+                    className="flex items-center justify-center space-x-2 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    <span className="underline">Add location</span>
+                  </button>
+                ) : null}
+                
+                {/* Phone */}
+                {user.phone ? (
+                  <div className="flex items-center justify-center space-x-2 text-muted-foreground">
+                    <Phone className="h-4 w-4" />
+                    <span>{user.phone}</span>
+                    {isOwnProfile && (
+                      <button
+                        onClick={() => startEditingField('phone')}
+                        className="text-muted-foreground hover:text-primary transition-colors ml-2"
+                      >
+                        <Edit2 className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ) : isOwnProfile ? (
+                  <button
+                    onClick={() => startEditingField('phone')}
+                    className="flex items-center justify-center space-x-2 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
+                  >
+                    <Phone className="h-4 w-4" />
+                    <span className="underline">Add phone number</span>
+                  </button>
+                ) : null}
+              </div>
             </>
           )}
         </div>
@@ -76,18 +376,28 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
           <div className="flex justify-center space-x-2 mt-4">
             {isEditing ? (
               <>
-                <Button variant="outline" size="sm" onClick={handleCancel}>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={handleCancel}
+                  disabled={isLoading}
+                >
                   Cancel
                 </Button>
-                <Button variant="default" size="sm" onClick={handleSave}>
-                  Save Changes
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  onClick={handleSave}
+                  disabled={isLoading}
+                >
+                  {isLoading ? 'Saving...' : 'Save Changes'}
                 </Button>
               </>
             ) : (
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setIsEditing(true)}
+                onClick={startEditingAll}
                 className="hover:bg-primary/10"
               >
                 <Edit2 className="h-4 w-4 mr-2" />
@@ -129,14 +439,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
           <div className="flex items-center space-x-2 text-muted-foreground">
             <Calendar className="h-4 w-4" />
             <span className="text-sm">Joined January 2023</span>
-          </div>
-          <div className="flex items-center space-x-2 text-muted-foreground">
-            <MapPin className="h-4 w-4" />
-            <span className="text-sm">San Francisco, CA</span>
-          </div>
-          <div className="flex items-center space-x-2 text-muted-foreground">
-            <LinkIcon className="h-4 w-4" />
-            <span className="text-sm">portfolio.example.com</span>
           </div>
         </div>
       </CardContent>

@@ -21,11 +21,25 @@ class UserLogin(BaseModel):
 class GoogleAuthRequest(BaseModel):
     token: str  # Google ID token
 
+class UserProfileUpdate(BaseModel):
+    full_name: str
+    bio: Optional[str] = None
+    education_school: Optional[str] = None
+    education_degree: Optional[str] = None
+    location: Optional[str] = None
+    phone: Optional[str] = None
+    # Email is not editable - it's tied to authentication provider
+
 # Response models
 class UserResponse(BaseModel):
     id: int
     full_name: str
     email: str
+    bio: Optional[str] = None
+    education_school: Optional[str] = None
+    education_degree: Optional[str] = None
+    location: Optional[str] = None
+    phone: Optional[str] = None
     auth_provider: AuthProvider
     profile_picture_url: Optional[str] = None
     is_active: bool

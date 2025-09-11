@@ -2,10 +2,11 @@ import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Home, User, Bell, MessageCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { currentUser } from '@/lib/mockData';
+import { useAuth } from '@/contexts/AuthContext';
 
 const Navbar = () => {
   const location = useLocation();
+  const { user, logout } = useAuth();
   
   const navItems = [
     { path: '/feed', icon: Home, label: 'Feed' },
@@ -51,23 +52,23 @@ const Navbar = () => {
 
         {/* User Menu */}
         <div className="flex items-center space-x-2">
-          <div className="hidden sm:flex items-center space-x-3">
-            <span className="text-2xl">{currentUser.avatar}</span>
-            <div className="hidden lg:block">
-              <p className="text-sm font-medium">{currentUser.name}</p>
-              <p className="text-xs text-muted-foreground">{currentUser.email}</p>
+          {user && (
+            <div className="hidden sm:flex items-center space-x-3">
+              <span className="text-2xl">👤</span>
+              <div className="hidden lg:block">
+                <p className="text-sm font-medium">{user.full_name}</p>
+                <p className="text-xs text-muted-foreground">{user.email}</p>
+              </div>
             </div>
-          </div>
+          )}
           <Button
             variant="ghost"
             size="sm"
-            asChild
+            onClick={logout}
             className="hover:bg-destructive/10 hover:text-destructive"
           >
-            <Link to="/">
-              <LogOut className="h-4 w-4" />
-              <span className="hidden sm:ml-2 sm:inline">Logout</span>
-            </Link>
+            <LogOut className="h-4 w-4" />
+            <span className="hidden sm:ml-2 sm:inline">Logout</span>
           </Button>
         </div>
       </div>

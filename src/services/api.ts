@@ -19,6 +19,12 @@ export interface AuthResponse {
     id: number;
     full_name: string;
     email: string;
+    bio?: string;
+    education_school?: string;
+    education_degree?: string;
+    location?: string;
+    phone?: string;
+    profile_picture_url?: string;
     created_at: string;
   };
 }
@@ -108,6 +114,45 @@ class ApiService {
 
   async getProfile(): Promise<AuthResponse['user']> {
     return this.request<AuthResponse['user']>('/auth/profile');
+  }
+
+  async updateProfile(profileData: { 
+    full_name: string; 
+    bio?: string;
+    education_school?: string;
+    education_degree?: string;
+    location?: string;
+    phone?: string;
+  }): Promise<AuthResponse['user']> {
+    const updatedUser = await this.request<AuthResponse['user']>('/auth/profile', {
+      method: 'PUT',
+      body: JSON.stringify(profileData),
+    });
+    
+    // Update stored user data
+    this.setUser(updatedUser);
+    
+    return updatedUser;
+  }
+
+  async uploadProfilePicture(file: File): Promise<{ message: string; profile_picture_url: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseURL}/auth/upload-profile-picture`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.getToken()}`,
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ detail: 'Upload failed' }));
+      throw new Error(errorData.detail || 'Failed to upload profile picture');
+    }
+
+    return await response.json();
   }
 
   // Utility methods for token management

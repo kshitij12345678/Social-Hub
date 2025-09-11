@@ -29,10 +29,18 @@ class User(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     full_name = Column(String(100), nullable=False)
     email = Column(String(255), unique=True, index=True, nullable=False)
+    bio = Column(String(500), nullable=True)  # User bio/description
     hashed_password = Column(String(255), nullable=True)  # Nullable for Google users
     google_id = Column(String(255), unique=True, nullable=True, index=True)  # Google user ID
     auth_provider = Column(Enum(AuthProvider), default=AuthProvider.LOCAL)  # Track auth method
     profile_picture_url = Column(String(500), nullable=True)  # For Google profile pics
+    
+    # Additional profile fields
+    education_school = Column(String(255), nullable=True)  # School/University
+    education_degree = Column(String(255), nullable=True)  # Degree/Field of study
+    location = Column(String(255), nullable=True)  # Location/City
+    phone = Column(String(20), nullable=True)  # Phone number
+    
     is_active = Column(Boolean, default=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)

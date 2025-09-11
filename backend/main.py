@@ -1,16 +1,20 @@
-from fastapi import FastAPI, HTTPException, Depends, status
+from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
 from datetime import timedelta
 from typing import Optional
 import os
+import uuid
+import shutil
+from pathlib import Path
 from google.oauth2 import id_token
 from google.auth.transport import requests
 
 # Import our modules
 from database import get_db, create_tables, User
-from schemas import UserRegistration, UserLogin, UserResponse, Token, Message, GoogleAuthRequest
+from schemas import UserRegistration, UserLogin, UserResponse, Token, Message, GoogleAuthRequest, UserProfileUpdate
 from crud import create_user, authenticate_user, get_user_by_email, get_user_by_id, create_google_user, get_user_by_google_id
 from auth import create_access_token, verify_token, ACCESS_TOKEN_EXPIRE_MINUTES
 
@@ -21,6 +25,13 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Create uploads directory if it doesn't exist
+UPLOAD_DIR = Path("uploads/profile_pictures")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+# Mount static files to serve uploaded images
+app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
+
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
@@ -29,6 +40,7 @@ app.add_middleware(
         "http://localhost:3000", 
         "http://localhost:8000", 
         "http://localhost:8080",
+        "http://localhost:8081",  # Add the current frontend port
         "https://accounts.google.com"  # Add Google's domain
     ],
     allow_credentials=True,
@@ -218,6 +230,96 @@ async def get_current_user(
 @app.get("/auth/me", response_model=UserResponse)
 async def get_user_profile(current_user: User = Depends(get_current_user)):
     return UserResponse.from_orm(current_user)
+
+# Update user profile (protected endpoint)
+@app.put("/auth/profile", response_model=UserResponse)
+async def update_user_profile(
+    profile_data: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    print(f"Updating profile for user {current_user.email} with data: {profile_data}")
+    
+    # Update the user fields (email is not editable)
+    current_user.full_name = profile_data.full_name
+    if profile_data.bio is not None:
+        current_user.bio = profile_data.bio
+    if profile_data.education_school is not None:
+        current_user.education_school = profile_data.education_school
+    if profile_data.education_degree is not None:
+        current_user.education_degree = profile_data.education_degree
+    if profile_data.location is not None:
+        current_user.location = profile_data.location
+    if profile_data.phone is not None:
+        current_user.phone = profile_data.phone
+    
+    try:
+        db.commit()
+        db.refresh(current_user)
+        result = UserResponse.from_orm(current_user)
+        print(f"Profile update successful, returning: {result}")
+        return result
+    except Exception as e:
+        print(f"Error updating profile: {e}")
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to update profile"
+        )
+
+# Upload profile picture endpoint
+@app.post("/auth/upload-profile-picture")
+async def upload_profile_picture(
+    file: UploadFile = File(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    # Validate file type
+    allowed_types = ["image/jpeg", "image/jpg", "image/png", "image/gif", "image/webp"]
+    if file.content_type not in allowed_types:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed."
+        )
+    
+    # Validate file size (limit to 5MB)
+    if file.size and file.size > 5 * 1024 * 1024:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File size too large. Maximum size is 5MB."
+        )
+    
+    try:
+        # Generate unique filename
+        file_extension = file.filename.split('.')[-1] if '.' in file.filename else 'jpg'
+        unique_filename = f"{current_user.id}_{uuid.uuid4().hex}.{file_extension}"
+        file_path = UPLOAD_DIR / unique_filename
+        
+        # Save the file
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        
+        # Update user's profile picture URL
+        profile_picture_url = f"http://localhost:8001/uploads/profile_pictures/{unique_filename}"
+        current_user.profile_picture_url = profile_picture_url
+        
+        db.commit()
+        db.refresh(current_user)
+        
+        return {
+            "message": "Profile picture uploaded successfully",
+            "profile_picture_url": profile_picture_url
+        }
+        
+    except Exception as e:
+        db.rollback()
+        # Clean up file if it was created
+        if file_path.exists():
+            file_path.unlink()
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to upload profile picture"
+        )
 
 # Logout endpoint (client-side token removal)
 @app.post("/auth/logout", response_model=Message)

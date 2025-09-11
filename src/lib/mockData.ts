@@ -4,6 +4,11 @@ export interface User {
   email: string;
   avatar: string;
   bio: string;
+  education_school?: string;
+  education_degree?: string;
+  location?: string;
+  phone?: string;
+  profile_picture_url?: string;
   following: number;
   followers: number;
 }
@@ -99,84 +104,7 @@ export const mockUsers: User[] = [
 export const currentUser = mockUsers[0];
 
 // Mock Posts
-export const mockPosts: Post[] = [
-  {
-    id: '1',
-    userId: '2',
-    user: mockUsers[1],
-    content: 'Just launched my new portfolio website! Built with React and Tailwind CSS. The design process was incredible - focusing on clean typography and smooth animations. What do you think about the latest web design trends?',
-    timestamp: '2 hours ago',
-    likes: 24,
-    shares: 5,
-    isLiked: false,
-    comments: [
-      {
-        id: '1',
-        userId: '1',
-        user: mockUsers[0],
-        content: 'Looks amazing! The animations are so smooth.',
-        timestamp: '1 hour ago',
-        likes: 3,
-      },
-      {
-        id: '2',
-        userId: '3',
-        user: mockUsers[2],
-        content: 'Love the color palette choice! Very modern.',
-        timestamp: '45 minutes ago',
-        likes: 2,
-      },
-    ],
-  },
-  {
-    id: '2',
-    userId: '3',
-    user: mockUsers[2],
-    content: 'Working on a new digital art series inspired by nature and technology. The intersection of organic forms with geometric patterns has always fascinated me. Here\'s a sneak peek of my latest piece! 🎨✨',
-    timestamp: '4 hours ago',
-    likes: 56,
-    shares: 12,
-    isLiked: true,
-    comments: [
-      {
-        id: '3',
-        userId: '4',
-        user: mockUsers[3],
-        content: 'This is absolutely stunning! The color transitions are perfect.',
-        timestamp: '3 hours ago',
-        likes: 8,
-      },
-    ],
-  },
-  {
-    id: '3',
-    userId: '4',
-    user: mockUsers[3],
-    content: 'Captured this amazing sunset yesterday during my photoshoot. Sometimes the best moments happen when you least expect them. The golden hour never fails to amaze me! 📸🌅',
-    timestamp: '1 day ago',
-    likes: 89,
-    shares: 18,
-    isLiked: true,
-    comments: [
-      {
-        id: '4',
-        userId: '1',
-        user: mockUsers[0],
-        content: 'Breathtaking shot! The composition is perfect.',
-        timestamp: '20 hours ago',
-        likes: 5,
-      },
-      {
-        id: '5',
-        userId: '2',
-        user: mockUsers[1],
-        content: 'The lighting is incredible. What camera did you use?',
-        timestamp: '18 hours ago',
-        likes: 3,
-      },
-    ],
-  },
-];
+export const mockPosts: Post[] = [];
 
 // Mock Notifications
 export const mockNotifications: Notification[] = [

@@ -6,13 +6,43 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import ResponsiveLayout from '@/components/layout/responsive-layout';
 import UserProfile from '@/components/ui/user-profile';
 import FeedPostCard from '@/components/ui/feed-post-card';
-import { currentUser, mockPosts } from '@/lib/mockData';
+import { useAuth } from '@/contexts/AuthContext';
+import { mockPosts } from '@/lib/mockData';
 
 const Profile = () => {
   const [viewMode, setViewMode] = useState<'grid' | 'list'>('grid');
+  const { user, isAuthenticated } = useAuth();
+  
+  // If not authenticated, show message or redirect
+  if (!isAuthenticated || !user) {
+    return (
+      <ResponsiveLayout>
+        <div className="max-w-4xl mx-auto text-center py-12">
+          <h2 className="text-2xl font-bold mb-4">Please log in to view your profile</h2>
+          <p className="text-muted-foreground">You need to be authenticated to access this page.</p>
+        </div>
+      </ResponsiveLayout>
+    );
+  }
+
+  // Convert API user to match the User interface expected by components
+  const profileUser = {
+    id: user.id.toString(),
+    name: user.full_name,
+    email: user.email,
+    avatar: user.full_name.split(' ').map(n => n[0]).join('').toUpperCase(), // Generate avatar from initials
+    bio: user.bio, // Remove fallback - show actual data only
+    education_school: user.education_school,
+    education_degree: user.education_degree,
+    location: user.location,
+    phone: user.phone,
+    profile_picture_url: user.profile_picture_url,
+    following: 0,
+    followers: 0,
+  };
   
   // Filter posts by current user
-  const userPosts = mockPosts.filter(post => post.userId === currentUser.id);
+  const userPosts = mockPosts.filter(post => post.userId === user.id.toString());
 
   return (
     <ResponsiveLayout>
@@ -20,7 +50,7 @@ const Profile = () => {
         <div className="grid lg:grid-cols-3 gap-6">
           {/* Profile Info */}
           <div className="lg:col-span-1">
-            <UserProfile user={currentUser} isOwnProfile={true} />
+            <UserProfile user={profileUser} isOwnProfile={true} />
           </div>
 
           {/* Posts Section */}
@@ -107,30 +137,22 @@ const Profile = () => {
                   </TabsContent>
 
                   <TabsContent value="photos" className="p-4">
-                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                      {[1, 2, 3, 4, 5, 6].map((i) => (
-                        <Card key={i} className="aspect-square hover:shadow-soft transition-smooth animate-scale-in">
-                          <CardContent className="p-0 h-full">
-                            <div className="w-full h-full bg-muted rounded-lg flex items-center justify-center">
-                              <span className="text-2xl">📸</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                        <span className="text-2xl">📸</span>
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No photos yet</h3>
+                      <p className="text-muted-foreground">Photos you share will appear here</p>
                     </div>
                   </TabsContent>
 
                   <TabsContent value="videos" className="p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {[1, 2, 3, 4].map((i) => (
-                        <Card key={i} className="aspect-video hover:shadow-soft transition-smooth animate-scale-in">
-                          <CardContent className="p-0 h-full">
-                            <div className="w-full h-full bg-muted rounded-lg flex items-center justify-center">
-                              <span className="text-3xl">🎥</span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      ))}
+                    <div className="text-center py-12">
+                      <div className="w-16 h-16 rounded-full bg-muted flex items-center justify-center mx-auto mb-4">
+                        <span className="text-2xl">🎥</span>
+                      </div>
+                      <h3 className="text-lg font-semibold mb-2">No videos yet</h3>
+                      <p className="text-muted-foreground">Videos you share will appear here</p>
                     </div>
                   </TabsContent>
                 </Tabs>

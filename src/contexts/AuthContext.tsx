@@ -7,6 +7,15 @@ interface AuthContextType {
   isLoading: boolean;
   login: (email: string, password: string) => Promise<void>;
   register: (fullName: string, email: string, password: string) => Promise<void>;
+  updateProfile: (profileData: {
+    full_name: string;
+    bio?: string;
+    education_school?: string;
+    education_degree?: string;
+    location?: string;
+    phone?: string;
+  }) => Promise<void>;
+  uploadProfilePicture: (file: File) => Promise<void>;
   logout: () => Promise<void>;
 }
 
@@ -55,12 +64,40 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     setUser(null);
   };
 
+  const updateProfile = async (profileData: {
+    full_name: string;
+    bio?: string;
+    education_school?: string;
+    education_degree?: string;
+    location?: string;
+    phone?: string;
+  }): Promise<void> => {
+    const updatedUser = await apiService.updateProfile(profileData);
+    setUser(updatedUser);
+  };
+
+  const uploadProfilePicture = async (file: File): Promise<void> => {
+    const response = await apiService.uploadProfilePicture(file);
+    // Update the user state with the new profile picture URL
+    if (user) {
+      const updatedUser = {
+        ...user,
+        profile_picture_url: response.profile_picture_url
+      };
+      setUser(updatedUser);
+      // Also update localStorage
+      apiService.setUser(updatedUser);
+    }
+  };
+
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isLoading,
     login,
     register,
+    updateProfile,
+    uploadProfilePicture,
     logout,
   };
 

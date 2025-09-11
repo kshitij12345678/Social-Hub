@@ -6,12 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleAuth } from '@/hooks/use-google-auth';
 
 const SignupForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { register, user } = useAuth();
   const { initializeGoogleSignIn, renderGoogleButton, isLoading: googleLoading } = useGoogleAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -72,25 +73,15 @@ const SignupForm = () => {
     if (validateForm()) {
       setIsLoading(true);
       try {
-        const registerData = {
-          full_name: formData.fullName,
-          email: formData.email,
-          password: formData.password,
-        };
-
-        const response = await apiService.register(registerData);
-        
-        // Store token and user info
-        apiService.setToken(response.access_token);
-        apiService.setUser(response.user);
+        await register(formData.fullName, formData.email, formData.password);
         
         toast({
           title: "Account created successfully!",
-          description: `Welcome to SocialHub, ${response.user.full_name}!`,
+          description: `Welcome to SocialHub, ${formData.fullName}!`,
         });
         
         setTimeout(() => {
-          navigate('/feed');
+          navigate('/profile');
         }, 1500);
       } catch (error) {
         toast({

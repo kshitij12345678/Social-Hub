@@ -6,12 +6,13 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { useToast } from '@/hooks/use-toast';
-import { apiService } from '@/services/api';
+import { useAuth } from '@/contexts/AuthContext';
 import { useGoogleAuth } from '@/hooks/use-google-auth';
 
 const LoginForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { login } = useAuth();
   const { initializeGoogleSignIn, renderGoogleButton, isLoading: googleLoading } = useGoogleAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -57,18 +58,11 @@ const LoginForm = () => {
     if (validateForm()) {
       setIsLoading(true);
       try {
-        const response = await apiService.login({
-          email: formData.email,
-          password: formData.password,
-        });
-        
-        // Store token and user info
-        apiService.setToken(response.access_token);
-        apiService.setUser(response.user);
+        await login(formData.email, formData.password);
         
         toast({
           title: "Welcome back!",
-          description: `Hello ${response.user.full_name}, you've been successfully logged in.`,
+          description: `You've been successfully logged in.`,
         });
         
         setTimeout(() => {
