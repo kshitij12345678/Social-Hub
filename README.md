@@ -1,73 +1,159 @@
-# Welcome to your Lovable project
+# SocialHub - Modern Social Media Web App
 
-## Project info
+A beautiful, responsive social media frontend built with React.js, featuring an elegant pastel color palette and smooth animations.
 
-**URL**: https://lovable.dev/projects/2fbccaf0-22f7-46cf-8630-0fcb4f49ac11
+## 🎨 Features
 
-## How can I edit this code?
+### Pages & Components
+- **Landing Page** - Welcome section with gradient background and call-to-action buttons
+- **Authentication** - Signup and Login forms with validation and Google integration
+- **Home Feed** - Social posts with like, comment, and share functionality
+- **Profile Page** - User profiles with editable fields and post grid/list view
+- **Notifications** - Real-time notifications with filtering and mark as read
+- **Messages** - Real-time chat interface with conversation sidebar
+- **Responsive Design** - Mobile-first design that works on all devices
 
-There are several ways of editing your application.
+### Design System
+- **Pastel Color Palette**: 
+  - Pastel Blue (#A8DADC)
+  - Pastel Pink (#FAD4D4) 
+  - Pastel Green (#B8E1C8)
+  - Light Gray (#F1FAEE)
+  - Soft Yellow (#FFE5B4)
+- **Typography**: Poppins font for clean, modern text
+- **Animations**: Smooth transitions and hover effects
+- **Components**: Reusable UI components with variants
 
-**Use Lovable**
+## 🚀 Getting Started
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/2fbccaf0-22f7-46cf-8630-0fcb4f49ac11) and start prompting.
+### Prerequisites
+- Node.js (16.x or higher)
+- npm or yarn
 
-Changes made via Lovable will be committed automatically to this repo.
+### Installation
 
-**Use your preferred IDE**
+1. Clone the repository:
+```bash
+git clone <repository-url>
+cd socialhub
+```
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+2. Install dependencies:
+```bash
+npm install
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
-
-Follow these steps:
-
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+3. Start the development server:
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+4. Open your browser and navigate to `http://localhost:8080`
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## 📁 Project Structure
 
-**Use GitHub Codespaces**
+```
+src/
+├── components/
+│   ├── ui/                     # Reusable UI components
+│   │   ├── navbar.tsx         # Navigation component
+│   │   ├── feed-post-card.tsx # Post display component
+│   │   ├── notification-card.tsx # Notification item
+│   │   ├── message-bubble.tsx  # Chat message component
+│   │   └── user-profile.tsx   # Profile component
+│   ├── forms/                 # Form components
+│   │   ├── signup-form.tsx    # Registration form
+│   │   └── login-form.tsx     # Login form
+│   └── layout/                # Layout components
+│       └── responsive-layout.tsx # Main layout wrapper
+├── pages/                     # Page components
+│   ├── Landing.tsx           # Landing page
+│   ├── Login.tsx             # Login page
+│   ├── Signup.tsx            # Signup page
+│   ├── Feed.tsx              # Home feed
+│   ├── Profile.tsx           # User profile
+│   ├── Notifications.tsx     # Notifications page
+│   └── Messages.tsx          # Chat interface
+├── lib/
+│   └── mockData.ts           # Mock data for development
+├── hooks/                    # Custom React hooks
+└── assets/                   # Static assets
+```
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🎯 Key Components
 
-## What technologies are used for this project?
+### Navbar
+- Responsive navigation with active state indicators
+- User menu with profile information
+- Mobile-friendly bottom navigation
 
-This project is built with:
+### FeedPostCard  
+- Interactive post cards with like, comment, share
+- Collapsible comments section
+- User avatars and timestamps
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+### NotificationCard
+- Different notification types (like, comment, follow, mention)
+- Read/unread states with visual indicators
+- Action buttons for quick responses
 
-## How can I deploy this project?
+### MessageBubble
+- Chat bubbles with sent/received styling
+- Read receipts and timestamps
+- Responsive design for mobile and desktop
 
-Simply open [Lovable](https://lovable.dev/projects/2fbccaf0-22f7-46cf-8630-0fcb4f49ac11) and click on Share -> Publish.
+### UserProfile
+- Editable profile information
+- Stats display (followers, following)
+- Post grid and list view toggle
 
-## Can I connect a custom domain to my Lovable project?
+## 🛠 Technology Stack
 
-Yes, you can!
+- **Frontend**: React 18 with TypeScript
+- **Styling**: Tailwind CSS with custom design system
+- **UI Components**: shadcn/ui component library
+- **Routing**: React Router v6
+- **State Management**: React hooks and context
+- **Build Tool**: Vite
+- **Icons**: Lucide React
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 📱 Responsive Design
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+The app is fully responsive with:
+- Mobile-first approach
+- Breakpoint-specific layouts
+- Touch-friendly interactions
+- Optimized navigation for small screens
+
+## 🎨 Design Features
+
+- **Pastel Color Scheme**: Soft, professional colors throughout
+- **Smooth Animations**: CSS transitions and keyframe animations
+- **Modern Typography**: Poppins font family
+- **Card-based Layout**: Consistent card components
+- **Hover Effects**: Interactive feedback on all clickable elements
+
+## 🔧 Development
+
+### Scripts
+- `npm run dev` - Start development server
+- `npm run build` - Build for production
+- `npm run preview` - Preview production build
+- `npm run lint` - Run ESLint
+
+### Customization
+- Colors can be modified in `src/index.css` (CSS variables)
+- Component variants in individual component files
+- Animations defined in `tailwind.config.ts`
+
+## 📄 License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## 🤝 Contributing
+
+Contributions, issues, and feature requests are welcome! Feel free to check the [issues page](issues).
+
+---
+
+Built with ❤️ using React.js and Tailwind CSS
