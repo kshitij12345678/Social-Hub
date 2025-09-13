@@ -434,13 +434,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
 
         <Separator className="my-4" />
 
-        {/* Additional Info */}
-        <div className="space-y-3">
-          <div className="flex items-center space-x-2 text-muted-foreground">
-            <Calendar className="h-4 w-4" />
-            <span className="text-sm">Joined January 2023</span>
-          </div>
-        </div>
+        
       </CardContent>
     </Card>
   );
