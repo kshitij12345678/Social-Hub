@@ -434,7 +434,7 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
 
         <Separator className="my-4" />
 
-        
+
       </CardContent>
     </Card>
   );
