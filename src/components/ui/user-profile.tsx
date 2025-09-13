@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { ProfilePictureViewer } from '@/components/ui/profile-picture-viewer';
 import { useAuth } from '@/contexts/AuthContext';
 import { User } from '@/lib/mockData';
 
@@ -18,9 +19,8 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
   const [editingField, setEditingField] = useState<string | null>(null);
   const [editedUser, setEditedUser] = useState(user);
   const [isLoading, setIsLoading] = useState(false);
-  const [isUploadingImage, setIsUploadingImage] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const { updateProfile, uploadProfilePicture } = useAuth();
+  const [showProfilePictureViewer, setShowProfilePictureViewer] = useState(false);
+  const { updateProfile } = useAuth();
 
   // Sync editedUser with user prop changes
   useEffect(() => {
@@ -90,45 +90,6 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
     setIsEditing(true);
   };
 
-  const handleImageUpload = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-
-    // Validate file type
-    const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-    if (!allowedTypes.includes(file.type)) {
-      alert('Invalid file type. Only JPEG, PNG, GIF, and WebP images are allowed.');
-      return;
-    }
-
-    // Validate file size (5MB)
-    if (file.size > 5 * 1024 * 1024) {
-      alert('File size too large. Maximum size is 5MB.');
-      return;
-    }
-
-    setIsUploadingImage(true);
-    try {
-      await uploadProfilePicture(file);
-      console.log('Profile picture uploaded successfully');
-    } catch (error) {
-      console.error('Failed to upload profile picture:', error);
-      alert('Failed to upload profile picture. Please try again.');
-    } finally {
-      setIsUploadingImage(false);
-      // Reset the input
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
-    }
-  };
-
   return (
     <Card className="w-full shadow-card animate-fade-in">
       <CardHeader className="text-center pb-4">
@@ -139,7 +100,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
 
         {/* Profile Picture */}
         <div className="relative -mt-20 mb-4">
-          <div className="w-24 h-24 mx-auto rounded-full bg-card shadow-glow flex items-center justify-center text-4xl border-4 border-card overflow-hidden relative group">
+          <div 
+            className="w-24 h-24 mx-auto rounded-full bg-card shadow-glow flex items-center justify-center text-4xl border-4 border-card overflow-hidden relative cursor-pointer hover:opacity-80 transition-opacity"
+            onClick={() => setShowProfilePictureViewer(true)}
+            title="Click to view profile picture"
+          >
             {user.profile_picture_url ? (
               <img 
                 src={user.profile_picture_url} 
@@ -149,34 +114,11 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
             ) : (
               <span className="text-foreground">{user.avatar}</span>
             )}
-            
-            {/* Upload overlay for own profile */}
-            {isOwnProfile && (
-              <>
-                <div 
-                  className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer flex items-center justify-center"
-                  onClick={handleImageUpload}
-                  title="Click to upload profile picture"
-                >
-                  {isUploadingImage ? (
-                    <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
-                  ) : (
-                    <Camera className="h-6 w-6 text-white" />
-                  )}
-                </div>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                  className="hidden"
-                />
-              </>
-            )}
           </div>
+          
           {isOwnProfile && (
             <p className="text-center text-xs text-muted-foreground mt-2">
-              Hover and click to upload
+              Click to view and edit
             </p>
           )}
         </div>
@@ -433,9 +375,16 @@ const UserProfile: React.FC<UserProfileProps> = ({ user, isOwnProfile = false })
         </div>
 
         <Separator className="my-4" />
-
-
       </CardContent>
+      
+      {/* Profile Picture Viewer Modal */}
+      <ProfilePictureViewer
+        isOpen={showProfilePictureViewer}
+        onClose={() => setShowProfilePictureViewer(false)}
+        imageUrl={user.profile_picture_url}
+        userName={user.name}
+        isOwnProfile={isOwnProfile}
+      />
     </Card>
   );
 };
