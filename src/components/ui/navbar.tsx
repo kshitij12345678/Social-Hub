@@ -1,12 +1,22 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { Home, User, Bell, MessageCircle, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 
 const Navbar = () => {
   const location = useLocation();
+  const navigate = useNavigate();
   const { user, logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      navigate('/login'); // Redirect to login page after logout
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  };
   
   const navItems = [
     { path: '/feed', icon: Home, label: 'Feed' },
@@ -64,7 +74,7 @@ const Navbar = () => {
           <Button
             variant="ghost"
             size="sm"
-            onClick={logout}
+            onClick={handleLogout}
             className="hover:bg-destructive/10 hover:text-destructive"
           >
             <LogOut className="h-4 w-4" />
