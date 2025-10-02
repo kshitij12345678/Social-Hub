@@ -1,22 +1,22 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiService, AuthResponse } from '@/services/api';
+import { account, ID } from '@/config/appwrite';
+
+interface User {
+  $id: string;
+  email: string;
+  name: string;
+}
 
 interface AuthContextType {
-  user: AuthResponse['user'] | null;
+  user: User | null;
   isAuthenticated: boolean;
   isLoading: boolean;
+  error: string;
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string) => Promise<void>;
-  updateProfile: (profileData: {
-    full_name: string;
-    bio?: string;
-    education_school?: string;
-    education_degree?: string;
-    location?: string;
-    phone?: string;
-  }) => Promise<void>;
-  uploadProfilePicture: (file: File) => Promise<void>;
+  register: (email: string, password: string, name?: string) => Promise<void>;
+  loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
+  clearError: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -26,79 +26,130 @@ interface AuthProviderProps {
 }
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
-  const [user, setUser] = useState<AuthResponse['user'] | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>('');
 
+  // Check if user is logged in on app start
   useEffect(() => {
-    // Check if user is already logged in on app start
-    const token = apiService.getToken();
-    const savedUser = apiService.getUser();
-    
-    if (token && savedUser) {
-      setUser(savedUser);
-    }
-    
-    setIsLoading(false);
+    checkAuth();
   }, []);
 
-  const login = async (email: string, password: string): Promise<void> => {
-    const response = await apiService.login({ email, password });
-    apiService.setToken(response.access_token);
-    apiService.setUser(response.user);
-    setUser(response.user);
-  };
+  // Check for OAuth callback on page load
+  useEffect(() => {
+    const handleOAuthCallback = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('success') || window.location.hash.includes('success')) {
+        // OAuth callback detected, check authentication
+        await checkAuth();
+      }
+    };
+    
+    handleOAuthCallback();
+  }, []);
 
-  const register = async (fullName: string, email: string, password: string): Promise<void> => {
-    const response = await apiService.register({
-      full_name: fullName,
-      email,
-      password,
-    });
-    apiService.setToken(response.access_token);
-    apiService.setUser(response.user);
-    setUser(response.user);
-  };
-
-  const logout = async (): Promise<void> => {
-    await apiService.logout();
-    setUser(null);
-  };
-
-  const updateProfile = async (profileData: {
-    full_name: string;
-    bio?: string;
-    education_school?: string;
-    education_degree?: string;
-    location?: string;
-    phone?: string;
-  }): Promise<void> => {
-    const updatedUser = await apiService.updateProfile(profileData);
-    setUser(updatedUser);
-  };
-
-  const uploadProfilePicture = async (file: File): Promise<void> => {
-    const response = await apiService.uploadProfilePicture(file);
-    // Update the user state with the new profile picture URL
-    if (user) {
-      const updatedUser = {
-        ...user,
-        profile_picture_url: response.profile_picture_url
-      };
-      setUser(updatedUser);
-      // Also update localStorage
-      apiService.setUser(updatedUser);
+  const checkAuth = async () => {
+    try {
+      const currentUser = await account.get();
+      setUser({
+        $id: currentUser.$id,
+        email: currentUser.email,
+        name: currentUser.name || currentUser.email
+      });
+      setError('');
+    } catch (error) {
+      console.log('No active session');
+      setUser(null);
+    } finally {
+      setIsLoading(false);
     }
+  };
+
+  // Register with email and password (following demo pattern)
+  const register = async (email: string, password: string, name?: string): Promise<void> => {
+    try {
+      setError('');
+      setIsLoading(true);
+      
+      // Create account
+      await account.create(ID.unique(), email, password, name);
+      
+      // Login after successful registration
+      await login(email, password);
+    } catch (error: any) {
+      setError(error.message || 'Registration failed');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Login with email and password (following demo pattern)
+  const login = async (email: string, password: string): Promise<void> => {
+    try {
+      setError('');
+      setIsLoading(true);
+      
+      // Create session
+      await account.createEmailPasswordSession(email, password);
+      
+      // Get user details
+      const userDetails = await account.get();
+      setUser({
+        $id: userDetails.$id,
+        email: userDetails.email,
+        name: userDetails.name || userDetails.email
+      });
+    } catch (error: any) {
+      setError(error.message || 'Login failed');
+      throw error;
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Google OAuth login (exact demo pattern)
+  const loginWithGoogle = async () => {
+    try {
+      setError('');
+      // Redirect to Google OAuth (using correct port 8080)
+      (account as any).createOAuth2Session(
+        "google",
+        "http://localhost:8080", // success redirect → back to your React app
+        "http://localhost:8080"  // failure redirect
+      );
+    } catch (error: any) {
+      setError(error.message || 'Google login failed');
+    }
+  };
+
+  // Logout (following demo pattern)
+  const logout = async (): Promise<void> => {
+    try {
+      setError('');
+      await account.deleteSession('current');
+      setUser(null);
+    } catch (error: any) {
+      setError(error.message || 'Logout failed');
+      // Even if logout fails, clear local state
+      setUser(null);
+    }
+  };
+
+  const clearError = () => {
+    setError('');
   };
 
   const value: AuthContextType = {
     user,
     isAuthenticated: !!user,
     isLoading,
+    error,
     login,
     register,
-    updateProfile,
-    uploadProfilePicture,
+    loginWithGoogle,
     logout,
+    clearError
   };
 
   return (
@@ -108,7 +159,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   );
 };
 
-export const useAuth = (): AuthContextType => {
+export const useAuth = () => {
   const context = useContext(AuthContext);
   if (context === undefined) {
     throw new Error('useAuth must be used within an AuthProvider');

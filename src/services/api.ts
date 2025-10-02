@@ -12,25 +12,37 @@ export interface LoginData {
 }
 
 export interface AuthResponse {
-  access_token: string;
-  token_type: string;
-  expires_in: number;
+  success: boolean;
+  message: string;
   user: {
-    id: number;
-    full_name: string;
+    $id: string;
     email: string;
+    full_name: string;
     bio?: string;
     education_school?: string;
     education_degree?: string;
     location?: string;
     phone?: string;
     profile_picture_url?: string;
-    created_at: string;
+    $createdAt: string;
+    $updatedAt: string;
+  };
+  session?: {
+    $id: string;
+    userId: string;
+    expire: string;
   };
 }
 
 export interface ApiError {
-  detail: string;
+  error: string;
+  message: string;
+}
+
+export interface GoogleAuthData {
+  userId: string;
+  email: string;
+  name: string;
 }
 
 class ApiService {
@@ -54,12 +66,14 @@ class ApiService {
       ...options,
     };
 
-    // Add auth token if available
-    const token = localStorage.getItem('access_token');
-    if (token) {
+    // Add session token if available
+    const sessionId = localStorage.getItem('session_id');
+    const userId = localStorage.getItem('user_id');
+    if (sessionId && userId) {
       config.headers = {
         ...config.headers,
-        Authorization: `Bearer ${token}`,
+        'X-Session-Token': sessionId,
+        'X-User-ID': userId,
       };
     }
 
@@ -68,7 +82,7 @@ class ApiService {
       
       if (!response.ok) {
         const errorData: ApiError = await response.json();
-        throw new Error(errorData.detail || `HTTP error! status: ${response.status}`);
+        throw new Error(errorData.error || errorData.message || `HTTP error! status: ${response.status}`);
       }
 
       return await response.json();
@@ -93,75 +107,107 @@ class ApiService {
     });
   }
 
-  async googleAuth(token: string): Promise<AuthResponse> {
+  async googleAuth(googleData: GoogleAuthData): Promise<AuthResponse> {
     return this.request<AuthResponse>('/auth/google', {
       method: 'POST',
-      body: JSON.stringify({ token }),
+      body: JSON.stringify(googleData),
     });
   }
 
   async logout(): Promise<{ message: string }> {
-    const result = await this.request<{ message: string }>('/auth/logout', {
-      method: 'POST',
-    });
+    const result = { message: 'Logged out successfully' };
     
-    // Clear token from localStorage
-    localStorage.removeItem('access_token');
+    // Clear tokens from localStorage  
+    localStorage.removeItem('session_id');
+    localStorage.removeItem('user_id');
     localStorage.removeItem('user');
     
     return result;
   }
 
-  async getProfile(): Promise<AuthResponse['user']> {
-    return this.request<AuthResponse['user']>('/auth/profile');
+  async getProfile(userId?: string): Promise<AuthResponse['user']> {
+    const currentUserId = userId || localStorage.getItem('user_id');
+    if (!currentUserId) {
+      throw new Error('User ID not found');
+    }
+    
+    const response = await this.request<{ user: AuthResponse['user'] }>(`/auth/profile/${currentUserId}`);
+    return response.user;
   }
 
   async updateProfile(profileData: { 
-    full_name: string; 
+    full_name?: string; 
     bio?: string;
     education_school?: string;
     education_degree?: string;
     location?: string;
     phone?: string;
   }): Promise<AuthResponse['user']> {
-    const updatedUser = await this.request<AuthResponse['user']>('/auth/profile', {
+    const userId = localStorage.getItem('user_id');
+    if (!userId) {
+      throw new Error('User ID not found');
+    }
+
+    const response = await this.request<{ user: AuthResponse['user'] }>(`/auth/profile/${userId}`, {
       method: 'PUT',
       body: JSON.stringify(profileData),
     });
     
     // Update stored user data
-    this.setUser(updatedUser);
+    this.setUser(response.user);
     
-    return updatedUser;
+    return response.user;
   }
 
   async uploadProfilePicture(file: File): Promise<{ message: string; profile_picture_url: string }> {
-    const formData = new FormData();
-    formData.append('file', file);
+    const userId = localStorage.getItem('user_id');
+    const sessionId = localStorage.getItem('session_id');
+    
+    if (!userId || !sessionId) {
+      throw new Error('Authentication required');
+    }
 
-    const response = await fetch(`${this.baseURL}/auth/upload-profile-picture`, {
+    const formData = new FormData();
+    formData.append('profile_picture', file);
+
+    const response = await fetch(`${this.baseURL}/auth/profile/${userId}/upload-picture`, {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${this.getToken()}`,
+        'X-Session-Token': sessionId,
+        'X-User-ID': userId,
       },
       body: formData,
     });
 
     if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ detail: 'Upload failed' }));
-      throw new Error(errorData.detail || 'Failed to upload profile picture');
+      const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(errorData.error || errorData.message || 'Failed to upload profile picture');
     }
 
-    return await response.json();
+    const result = await response.json();
+    
+    // Update user profile picture URL in localStorage
+    const user = this.getUser();
+    if (user) {
+      user.profile_picture_url = result.profile_picture_url;
+      this.setUser(user);
+    }
+
+    return result;
   }
 
-  // Utility methods for token management
-  setToken(token: string): void {
-    localStorage.setItem('access_token', token);
+  // Utility methods for session and user management
+  setSession(sessionId: string, userId: string): void {
+    localStorage.setItem('session_id', sessionId);
+    localStorage.setItem('user_id', userId);
   }
 
-  getToken(): string | null {
-    return localStorage.getItem('access_token');
+  getSessionId(): string | null {
+    return localStorage.getItem('session_id');
+  }
+
+  getUserId(): string | null {
+    return localStorage.getItem('user_id');
   }
 
   setUser(user: AuthResponse['user']): void {
@@ -174,7 +220,13 @@ class ApiService {
   }
 
   isAuthenticated(): boolean {
-    return !!this.getToken();
+    return !!(this.getSessionId() && this.getUserId());
+  }
+
+  clearAuth(): void {
+    localStorage.removeItem('session_id');
+    localStorage.removeItem('user_id'); 
+    localStorage.removeItem('user');
   }
 }
 
