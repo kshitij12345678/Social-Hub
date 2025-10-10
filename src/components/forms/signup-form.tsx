@@ -12,8 +12,8 @@ import { useGoogleAuth } from '@/hooks/use-google-auth';
 const SignupForm = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { register, user, loginWithGoogle, error, clearError } = useAuth();
-  const { initializeGoogleSignIn, renderGoogleButton, isLoading: googleLoading } = useGoogleAuth();
+  const { register, user, error, clearError } = useAuth();
+  const { initializeGoogleSignIn, renderGoogleButton, signInWithGoogle, isLoading: googleLoading } = useGoogleAuth();
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -97,7 +97,9 @@ const SignupForm = () => {
 
   const handleGoogleSignup = async () => {
     try {
-      await loginWithGoogle();
+      // Use the Google auth hook's signInWithGoogle function
+      signInWithGoogle();
+      
       toast({
         title: "Redirecting to Google",
         description: "Please wait while we redirect you to Google for authentication.",

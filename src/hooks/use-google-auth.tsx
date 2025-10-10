@@ -13,22 +13,35 @@ export const useGoogleAuth = () => {
   const { toast } = useToast();
 
   const initializeGoogleSignIn = () => {
-    console.log('Initializing Google Sign-In...');
-    console.log('Client ID:', import.meta.env.VITE_GOOGLE_CLIENT_ID);
-    console.log('Current origin:', window.location.origin);
+    console.log('🔍 Initializing Google Sign-In...');
+    console.log('📋 Client ID from env:', import.meta.env.VITE_GOOGLE_CLIENT_ID);
+    console.log('🌍 Current origin:', window.location.origin);
+    console.log('🔧 All env vars:', import.meta.env);
+    
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      console.error('❌ VITE_GOOGLE_CLIENT_ID is not defined!');
+      toast({
+        title: "Configuration Error",
+        description: "Google Client ID is not configured. Please check environment variables.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     if (window.google) {
-      console.log('Google object found, initializing...');
+      console.log('✅ Google object found, initializing...');
       try {
         window.google.accounts.id.initialize({
-          client_id: import.meta.env.VITE_GOOGLE_CLIENT_ID,
+          client_id: clientId,
           callback: handleGoogleResponse,
           auto_select: false,
           cancel_on_tap_outside: true,
         });
-        console.log('Google Sign-In initialized successfully');
+        console.log('🎉 Google Sign-In initialized successfully');
       } catch (error) {
-        console.error('Error initializing Google Sign-In:', error);
+        console.error('❌ Error initializing Google Sign-In:', error);
         toast({
           title: "Google Sign-In Error",
           description: "Failed to initialize Google Sign-In",
@@ -36,7 +49,7 @@ export const useGoogleAuth = () => {
         });
       }
     } else {
-      console.error('Google object not found');
+      console.error('❌ Google object not found');
       toast({
         title: "Google Sign-In Not Available",
         description: "Google Sign-In script not loaded",
@@ -48,11 +61,30 @@ export const useGoogleAuth = () => {
   const handleGoogleResponse = async (response: any) => {
     setIsLoading(true);
     try {
-      const result = await apiService.googleAuth(response.credential);
+      // Use our AuthContext's loginWithGoogle function instead of direct API call
+      const { useAuth } = await import('@/contexts/AuthContext');
+      
+      // For now, let's make a direct API call but properly integrate with AuthContext later
+      const result = await fetch('http://localhost:8001/auth/google', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: response.credential
+        })
+      });
 
-      // Store token and user data
-      localStorage.setItem('access_token', result.access_token);
-      localStorage.setItem('user', JSON.stringify(result.user));
+      if (!result.ok) {
+        const errorData = await result.json();
+        throw new Error(errorData.detail || 'Google login failed');
+      }
+
+      const data = await result.json();
+      
+      // Store token and user data properly
+      localStorage.setItem('authToken', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
 
       toast({
         title: "Welcome!",
@@ -66,7 +98,7 @@ export const useGoogleAuth = () => {
       console.error('Google auth error:', error);
       toast({
         title: "Authentication Failed",
-        description: error.response?.data?.detail || "Failed to sign in with Google. Please try again.",
+        description: error.message || "Failed to sign in with Google. Please try again.",
         variant: "destructive",
       });
     } finally {

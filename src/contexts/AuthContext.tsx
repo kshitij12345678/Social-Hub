@@ -1,10 +1,12 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { account, ID } from '@/config/appwrite';
 
 interface User {
-  $id: string;
+  id: number;
   email: string;
-  name: string;
+  full_name: string;
+  profile_picture_url?: string;
+  bio?: string;
+  location?: string;
 }
 
 interface AuthContextType {
@@ -13,8 +15,8 @@ interface AuthContextType {
   isLoading: boolean;
   error: string;
   login: (email: string, password: string) => Promise<void>;
-  register: (email: string, password: string, name?: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
+  register: (email: string, password: string, name: string) => Promise<void>;
+  loginWithGoogle: (googleToken: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -24,6 +26,8 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 interface AuthProviderProps {
   children: ReactNode;
 }
+
+const API_BASE_URL = 'http://localhost:8001';
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
@@ -35,28 +39,25 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     checkAuth();
   }, []);
 
-  // Check for OAuth callback on page load
-  useEffect(() => {
-    const handleOAuthCallback = async () => {
-      const urlParams = new URLSearchParams(window.location.search);
-      if (urlParams.get('success') || window.location.hash.includes('success')) {
-        // OAuth callback detected, check authentication
-        await checkAuth();
-      }
-    };
-    
-    handleOAuthCallback();
-  }, []);
-
   const checkAuth = async () => {
     try {
-      const currentUser = await account.get();
-      setUser({
-        $id: currentUser.$id,
-        email: currentUser.email,
-        name: currentUser.name || currentUser.email
-      });
-      setError('');
+      const token = localStorage.getItem('authToken');
+      const userData = localStorage.getItem('user');
+      
+      if (token && userData) {
+        const parsedUser = JSON.parse(userData);
+        setUser({
+          id: parsedUser.id,
+          email: parsedUser.email,
+          full_name: parsedUser.full_name,
+          profile_picture_url: parsedUser.profile_picture_url,
+          bio: parsedUser.bio,
+          location: parsedUser.location
+        });
+        setError('');
+      } else {
+        setUser(null);
+      }
     } catch (error) {
       console.log('No active session');
       setUser(null);
@@ -65,17 +66,45 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Register with email and password (following demo pattern)
-  const register = async (email: string, password: string, name?: string): Promise<void> => {
+  // Register with email and password
+  const register = async (email: string, password: string, name: string): Promise<void> => {
     try {
       setError('');
       setIsLoading(true);
       
-      // Create account
-      await account.create(ID.unique(), email, password, name);
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          full_name: name
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Registration failed');
+      }
+
+      const data = await response.json();
       
-      // Login after successful registration
-      await login(email, password);
+      // Store token and user data
+      localStorage.setItem('authToken', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Set user state
+      setUser({
+        id: data.user.id,
+        email: data.user.email,
+        full_name: data.user.full_name,
+        profile_picture_url: data.user.profile_picture_url,
+        bio: data.user.bio,
+        location: data.user.location
+      });
+      
     } catch (error: any) {
       setError(error.message || 'Registration failed');
       throw error;
@@ -84,22 +113,44 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Login with email and password (following demo pattern)
+  // Login with email and password
   const login = async (email: string, password: string): Promise<void> => {
     try {
       setError('');
       setIsLoading(true);
       
-      // Create session
-      await account.createEmailPasswordSession(email, password);
-      
-      // Get user details
-      const userDetails = await account.get();
-      setUser({
-        $id: userDetails.$id,
-        email: userDetails.email,
-        name: userDetails.name || userDetails.email
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          password
+        })
       });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Login failed');
+      }
+
+      const data = await response.json();
+      
+      // Store token and user data
+      localStorage.setItem('authToken', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Set user state
+      setUser({
+        id: data.user.id,
+        email: data.user.email,
+        full_name: data.user.full_name,
+        profile_picture_url: data.user.profile_picture_url,
+        bio: data.user.bio,
+        location: data.user.location
+      });
+      
     } catch (error: any) {
       setError(error.message || 'Login failed');
       throw error;
@@ -108,26 +159,57 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     }
   };
 
-  // Google OAuth login (exact demo pattern)
-  const loginWithGoogle = async () => {
+  // Google OAuth login
+  const loginWithGoogle = async (googleToken: string): Promise<void> => {
     try {
       setError('');
-      // Redirect to Google OAuth (using correct port 8080)
-      (account as any).createOAuth2Session(
-        "google",
-        "http://localhost:8080", // success redirect → back to your React app
-        "http://localhost:8080"  // failure redirect
-      );
+      setIsLoading(true);
+      
+      const response = await fetch(`${API_BASE_URL}/auth/google`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          token: googleToken
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Google login failed');
+      }
+
+      const data = await response.json();
+      
+      // Store token and user data
+      localStorage.setItem('authToken', data.access_token);
+      localStorage.setItem('user', JSON.stringify(data.user));
+      
+      // Set user state
+      setUser({
+        id: data.user.id,
+        email: data.user.email,
+        full_name: data.user.full_name,
+        profile_picture_url: data.user.profile_picture_url,
+        bio: data.user.bio,
+        location: data.user.location
+      });
+      
     } catch (error: any) {
       setError(error.message || 'Google login failed');
+      throw error;
+    } finally {
+      setIsLoading(false);
     }
   };
 
-  // Logout (following demo pattern)
+  // Logout
   const logout = async (): Promise<void> => {
     try {
       setError('');
-      await account.deleteSession('current');
+      localStorage.removeItem('authToken');
+      localStorage.removeItem('user');
       setUser(null);
     } catch (error: any) {
       setError(error.message || 'Logout failed');

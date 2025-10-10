@@ -48,6 +48,15 @@ export interface GoogleAuthData {
 class ApiService {
   private baseURL: string;
 
+  private getAuthHeaders() {
+    // Get JWT token from localStorage
+    const token = localStorage.getItem('authToken')
+    return {
+      'Content-Type': 'application/json',
+      ...(token && { 'Authorization': `Bearer ${token}` })
+    }
+  }
+
   constructor() {
     this.baseURL = API_BASE_URL;
   }

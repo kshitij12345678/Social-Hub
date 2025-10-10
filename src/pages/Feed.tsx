@@ -1,112 +1,208 @@
-import React, { useState } from 'react';
-import { PlusCircle, ImageIcon, Smile } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { PlusCircle, RefreshCw, Loader2, Sparkles, Brain } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
-import { Textarea } from '@/components/ui/textarea';
-import { Separator } from '@/components/ui/separator';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Badge } from '@/components/ui/badge';
 import ResponsiveLayout from '@/components/layout/responsive-layout';
-import FeedPostCard from '@/components/ui/feed-post-card';
-import { mockPosts, currentUser } from '@/lib/mockData';
+import PostCard from '@/components/ui/post-card';
+import CreatePost from '@/components/ui/create-post';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { apiService, Post } from '@/services/apiService';
 
 const Feed = () => {
-  const [posts, setPosts] = useState(mockPosts);
-  const [newPostContent, setNewPostContent] = useState('');
+  const { user, isAuthenticated } = useAuth();
   const { toast } = useToast();
+  
+  // State management - Only AI recommended posts
+  const [recommendedPosts, setRecommendedPosts] = useState<Post[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [showCreatePost, setShowCreatePost] = useState(false);
+  const [algorithmStats, setAlgorithmStats] = useState<{[key: string]: number}>({});
 
-  const handleCreatePost = () => {
-    if (!newPostContent.trim()) {
+  // Load AI recommended posts
+  const loadRecommendedPosts = useCallback(async (refresh = false) => {
+    if (!isAuthenticated) return;
+    
+    try {
+      setError(null);
+      if (refresh) {
+        setIsLoading(true);
+        setRecommendedPosts([]);
+      }
+
+      const response = await apiService.getRecommendations(20); // Get more recommendations
+      
+      setRecommendedPosts(response.recommendations);
+      
+      // Calculate algorithm distribution
+      const stats: {[key: string]: number} = {};
+      response.recommendations.forEach((post: any) => {
+        const algorithm = post.algorithm || 'unknown';
+        stats[algorithm] = (stats[algorithm] || 0) + 1;
+      });
+      setAlgorithmStats(stats);
+      
+    } catch (err) {
+      console.error('Failed to load posts:', err);
+      setError('Failed to load posts. Please try again.');
       toast({
-        title: "Empty post",
-        description: "Please write something before posting.",
+        title: "Error",
+        description: "Failed to load posts. Please check your connection.",
         variant: "destructive",
       });
-      return;
+    } finally {
+      setIsLoading(false);
     }
+  }, [isAuthenticated, toast]);
 
-    const newPost = {
-      id: String(posts.length + 1),
-      userId: currentUser.id,
-      user: currentUser,
-      content: newPostContent,
-      timestamp: 'Just now',
-      likes: 0,
-      shares: 0,
-      isLiked: false,
-      comments: [],
-    };
 
-    setPosts([newPost, ...posts]);
-    setNewPostContent('');
+
+  // Initialize AI feed
+  useEffect(() => {
+    if (isAuthenticated) {
+      loadRecommendedPosts();
+    }
+  }, [isAuthenticated, loadRecommendedPosts]);
+
+  // Handle post updates (likes, shares, etc.)
+  const handlePostUpdate = useCallback((updatedPost: Partial<Post>) => {
+    setRecommendedPosts(prev => prev.map(post => 
+      post.id === updatedPost.id 
+        ? { ...post, ...updatedPost }
+        : post
+    ));
+  }, []);
+
+  // Handle new post creation
+  const handlePostCreated = useCallback((newPost: Post) => {
+    setShowCreatePost(false);
+    
+    // Refresh recommendations to potentially include the new post
+    loadRecommendedPosts(true);
+    
+    // Scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
     
     toast({
       title: "Post created!",
-      description: "Your post has been shared with your network.",
+      description: "Your post has been created. Refreshing AI recommendations...",
     });
-  };
+  }, [loadRecommendedPosts, toast]);
+
+  // Show authentication required message
+  if (!isAuthenticated) {
+    return (
+      <ResponsiveLayout>
+        <div className="max-w-2xl mx-auto">
+          <Alert>
+            <AlertDescription>
+              Please log in to view your personalized feed.
+            </AlertDescription>
+          </Alert>
+        </div>
+      </ResponsiveLayout>
+    );
+  }
 
   return (
     <ResponsiveLayout>
       <div className="max-w-2xl mx-auto">
-        {/* Create Post Card */}
-        <Card className="mb-6 shadow-card animate-fade-in">
-          <CardContent className="p-4">
-            <div className="flex space-x-3">
-              <div className="w-10 h-10 rounded-full bg-primary flex items-center justify-center text-xl">
-                {currentUser.avatar}
-              </div>
-              <div className="flex-1">
-                <Textarea
-                  placeholder="What's on your mind?"
-                  value={newPostContent}
-                  onChange={(e) => setNewPostContent(e.target.value)}
-                  className="min-h-[100px] border-none resize-none shadow-none focus-visible:ring-0 text-base placeholder:text-muted-foreground"
-                />
-                
-                <Separator className="my-3" />
-                
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm" className="hover:bg-accent/10">
-                      <ImageIcon className="h-4 w-4 mr-2 text-accent" />
-                      Photo
-                    </Button>
-                    <Button variant="ghost" size="sm" className="hover:bg-warning/10">
-                      <Smile className="h-4 w-4 mr-2 text-warning" />
-                      Feeling
-                    </Button>
-                  </div>
-                  
-                  <Button 
-                    onClick={handleCreatePost}
-                    disabled={!newPostContent.trim()}
-                    className="transition-spring hover:scale-105"
-                  >
-                    <PlusCircle className="h-4 w-4 mr-2" />
-                    Post
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
 
-        {/* Posts Feed */}
-        <div className="space-y-6">
-          {posts.map((post) => (
-            <FeedPostCard key={post.id} post={post} />
-          ))}
-        </div>
 
-        {/* Load More */}
-        <div className="text-center mt-8 animate-fade-in">
-          <Button 
-            variant="outline" 
-            className="hover:bg-primary/10 transition-smooth"
+        {/* Action Buttons */}
+        <div className="mb-6 flex justify-center space-x-3">
+          <Button
+            onClick={() => setShowCreatePost(!showCreatePost)}
+            className="flex items-center space-x-2"
           >
-            Load More Posts
+            <PlusCircle className="h-4 w-4" />
+            <span>Create Post</span>
+          </Button>
+          
+                    <Button
+            variant="outline"
+            size="sm"
+            onClick={() => loadRecommendedPosts(true)}
+            disabled={isLoading}
+            className="flex items-center space-x-2"
+          >
+            <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
+            <span>Refresh</span>
           </Button>
         </div>
+
+        {/* Create Post Component */}
+        {showCreatePost && (
+          <div className="mb-6">
+            <CreatePost
+              onPostCreated={handlePostCreated}
+              onCancel={() => setShowCreatePost(false)}
+            />
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && (
+          <Alert className="mb-6">
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        {/* Loading State */}
+        {isLoading && (
+          <div className="flex flex-col justify-center items-center py-12">
+            <Loader2 className="h-8 w-8 animate-spin mb-4" />
+            <p className="text-lg font-medium">AI is curating your feed...</p>
+            <p className="text-muted-foreground text-sm">Finding the best content for you</p>
+          </div>
+        )}
+
+        {/* AI Recommended Posts Feed */}
+        {!isLoading && (
+          <>
+            {recommendedPosts.length === 0 ? (
+              <Card>
+                <CardContent className="pt-6 text-center py-12">
+                  <Brain className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  <h3 className="text-lg font-semibold mb-2">Building your AI profile</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Interact with some posts to help our AI learn your preferences!
+                  </p>
+                  <Button onClick={() => setShowCreatePost(true)}>
+                    Create Your First Post
+                  </Button>
+                </CardContent>
+              </Card>
+            ) : (
+              <div className="space-y-6">
+                {recommendedPosts.map((post) => (
+                  <PostCard
+                    key={post.id}
+                    post={post}
+                    onPostUpdate={handlePostUpdate}
+                  />
+                ))}
+              </div>
+            )}
+
+            {/* End of Feed */}
+            {recommendedPosts.length > 0 && (
+              <div className="text-center py-8">
+                <div className="flex items-center justify-center space-x-2 mb-2">
+                  <Sparkles className="h-5 w-5 text-purple-500" />
+                  <p className="text-muted-foreground">That's all for now!</p>
+                  <Sparkles className="h-5 w-5 text-purple-500" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Interact with posts to improve future recommendations
+                </p>
+              </div>
+            )}
+          </>
+        )}
       </div>
     </ResponsiveLayout>
   );
