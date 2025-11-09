@@ -191,7 +191,94 @@ class ApiService {
     return response.json();
   }
 
+  /**
+   * Update a post (only caption)
+   */
+  async updatePost(postId: number, updateData: { caption?: string }): Promise<any> {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+      method: 'PUT',
+      headers: this.getAuthHeaders(),
+      body: JSON.stringify(updateData)
+    });
 
+    if (!response.ok) {
+      throw new Error(`Failed to update post: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Delete a post
+   */
+  async deletePost(postId: number): Promise<{ message: string }> {
+    const response = await fetch(`${API_BASE_URL}/posts/${postId}`, {
+      method: 'DELETE',
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to delete post: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Search posts
+   */
+  async searchPosts(query: string, limit: number = 20): Promise<{
+    query: string;
+    results: Post[];
+    count: number;
+  }> {
+    const params = new URLSearchParams({
+      q: query,
+      limit: limit.toString()
+    });
+
+    const response = await fetch(`${API_BASE_URL}/search?${params}`, {
+      headers: this.getAuthHeaders()
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to search posts: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    
+    // Transform backend response to match frontend Post interface
+    const transformedResults: Post[] = data.results.map((post: any) => ({
+      id: post.id,
+      user: {
+        id: post.user_id,
+        full_name: post.author_name,
+        profile_picture_url: post.author_profile_picture,
+        email: '', // Not provided in search response
+        bio: '',
+        education_school: null,
+        education_degree: null,
+        location: null,
+        phone: null,
+      },
+      caption: post.caption,
+      media_url: post.media_url,
+      media_type: post.media_type,
+      location_id: post.location_id,
+      travel_date: post.travel_date,
+      likes_count: post.likes_count,
+      comments_count: post.comments_count,
+      shares_count: post.shares_count,
+      is_liked_by_user: post.is_liked,
+      created_at: post.created_at,
+    }));
+
+    return {
+      query: data.query,
+      results: transformedResults,
+      count: data.count
+    };
+  }
 
   /**
    * Get user's own posts
@@ -251,26 +338,7 @@ class ApiService {
     return response.json();
   }
 
-  /**
-   * Get search results
-   */
-  async searchPosts(query: string, cursor?: string, limit: number = 10): Promise<FeedResponse> {
-    const params = new URLSearchParams({
-      q: query,
-      limit: limit.toString(),
-      ...(cursor && { cursor })
-    });
 
-    const response = await fetch(`${API_BASE_URL}/api/search/posts?${params}`, {
-      headers: this.getAuthHeaders()
-    });
-
-    if (!response.ok) {
-      throw new Error(`Failed to search posts: ${response.statusText}`);
-    }
-
-    return response.json();
-  }
 
   /**
    * Get trending posts

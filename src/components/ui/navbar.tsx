@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { Home, User, Bell, MessageCircle, LogOut } from 'lucide-react';
+import { Home, User, Bell, MessageCircle, Search, LogOut } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/contexts/AuthContext';
 
@@ -20,6 +20,7 @@ const Navbar = () => {
   
   const navItems = [
     { path: '/feed', icon: Home, label: 'Feed' },
+    { path: '/search', icon: Search, label: 'Search' },
     { path: '/profile', icon: User, label: 'Profile' },
     { path: '/notifications', icon: Bell, label: 'Notifications' },
     { path: '/messages', icon: MessageCircle, label: 'Messages' },

@@ -74,16 +74,15 @@ def get_locations(db: Session, skip: int = 0, limit: int = 100) -> List[Location
 # ==================== POST OPERATIONS ====================
 
 def create_post(db: Session, post: PostCreate, user_id: int, 
-                image_url: Optional[str] = None, video_url: Optional[str] = None) -> Post:
+                media_url: Optional[str] = None, media_type: Optional[str] = None) -> Post:
     """Create a new post"""
     db_post = Post(
         user_id=user_id,
         caption=post.caption,
-        image_url=image_url,
-        video_url=video_url,
+        media_url=media_url,
+        media_type=media_type,
         location_id=post.location_id,
         travel_date=post.travel_date,
-        post_type=post.post_type,
         likes_count=0,
         comments_count=0,
         shares_count=0,
@@ -161,6 +160,21 @@ def get_user_posts(db: Session, user_id: int, skip: int = 0, limit: int = 20) ->
 def get_post_by_id(db: Session, post_id: int) -> Optional[Post]:
     """Get post by ID"""
     return db.query(Post).filter(Post.id == post_id).first()
+
+def update_post(db: Session, post_id: int, user_id: int, post_update: dict) -> Optional[Post]:
+    """Update a post (only by the owner)"""
+    post = db.query(Post).filter(and_(Post.id == post_id, Post.user_id == user_id)).first()
+    if post:
+        # Update only provided fields
+        for field, value in post_update.items():
+            if hasattr(post, field) and value is not None:
+                setattr(post, field, value)
+        
+        post.updated_at = datetime.utcnow()
+        db.commit()
+        db.refresh(post)
+        return post
+    return None
 
 def delete_post(db: Session, post_id: int, user_id: int) -> bool:
     """Delete a post (only by the owner)"""
@@ -318,11 +332,56 @@ def get_user_stats(db: Session, user_id: int) -> Dict[str, int]:
     }
 
 def get_trending_posts(db: Session, days: int = 7, limit: int = 20) -> List[Post]:
-    """Get trending posts from the last N days"""
+    """Get trending posts based on engagement"""
     cutoff_date = datetime.utcnow() - timedelta(days=days)
     
-    return db.query(Post)\
-             .filter(Post.created_at >= cutoff_date)\
-             .order_by(desc(Post.likes_count + Post.comments_count * 2 + Post.shares_count * 3))\
-             .limit(limit)\
-             .all()
+    # Calculate engagement score (likes + comments*2 + shares*3)
+    posts = db.query(Post).filter(Post.created_at >= cutoff_date).all()
+    
+    # Sort by engagement score
+    trending = sorted(posts, key=lambda p: p.likes_count + p.comments_count * 2 + p.shares_count * 3, reverse=True)
+    
+    return trending[:limit]
+
+def search_posts(db: Session, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+    """Search posts by caption, location name, or user name"""
+    search_term = f"%{query}%"
+    
+    # Search query joining posts, users, and locations
+    results = db.query(Post, User, Location).join(
+        User, Post.user_id == User.id
+    ).outerjoin(
+        Location, Post.location_id == Location.id
+    ).filter(
+        or_(
+            Post.caption.ilike(search_term),
+            Location.name.ilike(search_term), 
+            User.full_name.ilike(search_term)
+        )
+    ).order_by(Post.created_at.desc()).limit(limit).all()
+    
+    # Format results
+    posts_data = []
+    for post, user, location in results:
+        post_dict = {
+            'id': post.id,
+            'user_id': post.user_id,
+            'caption': post.caption,
+            'media_url': post.media_url,
+            'media_type': post.media_type,
+            'location_id': post.location_id,
+            'travel_date': post.travel_date.isoformat() if post.travel_date else None,
+            'likes_count': post.likes_count,
+            'comments_count': post.comments_count,
+            'shares_count': post.shares_count,
+            'created_at': post.created_at.isoformat() if post.created_at else None,
+            'updated_at': post.updated_at.isoformat() if post.updated_at else None,
+            'author_name': user.full_name,
+            'author_profile_picture': user.profile_picture_url,
+            'location_name': location.name if location else None,
+            'is_liked': False,  # TODO: Check if current user liked
+            'is_shared': False  # TODO: Check if current user shared
+        }
+        posts_data.append(post_dict)
+    
+    return posts_data

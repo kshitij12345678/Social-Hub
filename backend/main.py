@@ -2,8 +2,9 @@ from fastapi import FastAPI, HTTPException, Depends, status, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
-from datetime import timedelta
+from datetime import timedelta, datetime
 from typing import Optional, List
 import os
 import uuid
@@ -16,7 +17,7 @@ from google.auth.transport import requests
 from database import get_db, create_tables, User, Post
 from schemas import (
     UserRegistration, UserLogin, UserResponse, Token, Message, GoogleAuthRequest, 
-    UserProfileUpdate, PostCreate, PostResponse, CommentCreate, CommentResponse,
+    UserProfileUpdate, PostCreate, PostUpdate, PostResponse, CommentCreate, CommentResponse,
     LocationCreate, LocationResponse, RecommendationResponse, FeedResponse,
     AppwriteUserSync
 )
@@ -24,8 +25,8 @@ from crud import create_user, authenticate_user, get_user_by_email, get_user_by_
 from auth import create_access_token, verify_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from social_crud import (
     sync_appwrite_user, create_post, get_posts_feed, get_user_posts, get_post_by_id,
-    like_post, create_comment, get_post_comments, share_post, create_location,
-    get_locations, get_user_stats, get_trending_posts
+    update_post, delete_post, like_post, create_comment, get_post_comments, share_post, 
+    create_location, get_locations, get_user_stats, get_trending_posts, search_posts
 )
 from blob_storage import blob_storage
 from recommender.hybrid import HybridRecommender
@@ -42,6 +43,44 @@ from social_media_api import router as social_media_router
 
 # Phase 6: Recommendation System
 from recommendation_api import router as recommendation_router
+
+# Security setup for authentication
+security = HTTPBearer()
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(security),
+    db: Session = Depends(get_db)
+) -> User:
+    """FastAPI dependency to get current authenticated user"""
+    try:
+        # Verify the token
+        email = verify_token(credentials.credentials)
+        if email is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid authentication credentials",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        # Get user from database
+        user = get_user_by_email(db, email)
+        if user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User not found",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+        
+        return user
+    
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
 
 # Create FastAPI app
 app = FastAPI(
@@ -452,18 +491,20 @@ async def create_post_endpoint(
                 video_url = media_url
         
         # Create post
-        db_post = create_post(db, post, current_user.id, image_url, video_url)
+        media_type = 'image' if image_url else ('video' if video_url else None)
+        media_url = image_url or video_url
+        db_post = create_post(db, post, current_user.id, media_url, media_type)
         
         # Convert to response format
         post_dict = {
             'id': db_post.id,
             'user_id': db_post.user_id,
             'caption': db_post.caption,
-            'image_url': db_post.image_url,
-            'video_url': db_post.video_url,
+            'image_url': db_post.media_url if db_post.media_type == 'image' else None,
+            'video_url': db_post.media_url if db_post.media_type == 'video' else None,
             'location_id': db_post.location_id,
             'travel_date': db_post.travel_date,
-            'post_type': db_post.post_type,
+            'post_type': db_post.media_type or 'photo',
             'likes_count': db_post.likes_count,
             'comments_count': db_post.comments_count,
             'shares_count': db_post.shares_count,
@@ -614,6 +655,65 @@ async def get_user_posts_endpoint(
         posts_data.append(post_dict)
     
     return [PostResponse(**post) for post in posts_data]
+
+@app.put("/posts/{post_id}")
+async def update_post_endpoint(
+    post_id: int,
+    post_update: PostUpdate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Update post caption only"""
+    try:
+        # Find the post
+        post = db.query(Post).filter(Post.id == post_id, Post.user_id == current_user.id).first()
+        if not post:
+            raise HTTPException(status_code=404, detail="Post not found")
+        
+        # Update only the caption
+        if post_update.caption is not None:
+            post.caption = post_update.caption
+            post.updated_at = datetime.utcnow()
+            db.commit()
+            db.refresh(post)
+        
+        # Return minimal success response
+        return {
+            'id': post.id,
+            'caption': post.caption,
+            'message': 'Post updated successfully'
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Update error: {str(e)}")  # Debug
+        raise HTTPException(status_code=500, detail=f"Update failed: {str(e)}")
+
+@app.delete("/posts/{post_id}")
+async def delete_post_endpoint(
+    post_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Delete a post (only by owner)"""
+    try:
+        success = delete_post(db, post_id, current_user.id)
+        if not success:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Post not found or you don't have permission to delete it"
+            )
+        
+        return {"message": "Post deleted successfully"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to delete post: {str(e)}"
+        )
 
 # ==================== INTERACTION ENDPOINTS ====================
 
@@ -811,6 +911,39 @@ async def get_trending_posts_endpoint(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get trending posts: {str(e)}"
+        )
+
+# ==================== SEARCH ENDPOINTS ====================
+
+@app.get("/search")
+async def search_posts_endpoint(
+    q: str,
+    limit: int = 20,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Search posts by caption, location, or user name"""
+    try:
+        if not q or len(q.strip()) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Search query must be at least 2 characters"
+            )
+        
+        posts_data = search_posts(db, q.strip(), limit)
+        
+        return {
+            "query": q,
+            "results": posts_data,
+            "count": len(posts_data)
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Search failed: {str(e)}"
         )
 
 if __name__ == "__main__":

@@ -57,6 +57,9 @@ class PostCreate(BaseModel):
     travel_date: Optional[datetime] = None
     post_type: Optional[str] = "photo"  # photo, video, story
 
+class PostUpdate(BaseModel):
+    caption: Optional[str] = None
+
 class PostResponse(BaseModel):
     id: int
     user_id: int

@@ -12,6 +12,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import ResponsiveLayout from '@/components/layout/responsive-layout';
 import UserProfile from '@/components/ui/user-profile';
 import PostCard from '@/components/ui/post-card';
+import ProfilePostCard from '@/components/ui/profile-post-card';
 import CreatePost from '@/components/ui/create-post';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -105,6 +106,25 @@ const Profile = () => {
         ? { ...post, ...updatedPost }
         : post
     ));
+    
+    // Update media-specific arrays
+    setPhotoPosts(prev => prev.map(post => 
+      post.id === updatedPost.id 
+        ? { ...post, ...updatedPost }
+        : post
+    ));
+    setVideoPosts(prev => prev.map(post => 
+      post.id === updatedPost.id 
+        ? { ...post, ...updatedPost }
+        : post
+    ));
+  }, []);
+
+  // Handle post deletion
+  const handlePostDelete = useCallback((postId: number) => {
+    setPosts(prev => prev.filter(post => post.id !== postId));
+    setPhotoPosts(prev => prev.filter(post => post.id !== postId));
+    setVideoPosts(prev => prev.filter(post => post.id !== postId));
   }, []);
 
   // Handle new post creation
@@ -243,10 +263,12 @@ const Profile = () => {
                           <div className="space-y-6">
                             {posts.length > 0 ? (
                               posts.map((post) => (
-                                <PostCard 
+                                <ProfilePostCard 
                                   key={post.id} 
                                   post={post}
+                                  currentUserId={user.id}
                                   onPostUpdate={handlePostUpdate}
+                                  onPostDelete={handlePostDelete}
                                 />
                               ))
                             ) : (
