@@ -1,0 +1,35 @@
+{
+  "evaluation_timestamp": "2025-11-09T12:09:30.522331",
+  "users_evaluated": 4,
+  "successful_evaluations": 4,
+  "overall_metrics": {
+    "average_ctr": 41.8560606060606,
+    "average_precision_at_10": 45.0,
+    "average_diversity_score": 39.015151515151516,
+    "average_quality_score": 41.04166666666667
+  },
+  "system_metrics": {
+    "coverage": {
+      "total_posts": 3013,
+      "recommendable_posts": 3013,
+      "coverage_percentage": 100.0
+    },
+    "algorithm_distribution": {
+      "content_based_filtering": 66.66666666666666,
+      "popularity_based": 2.564102564102564,
+      "collaborative_filtering": 30.76923076923077
+    }
+  },
+  "performance_grades": {
+    "engagement_grade": "A",
+    "relevance_grade": "A",
+    "diversity_grade": "F",
+    "quality_grade": "F"
+  },
+  "recommendations": [
+    "\ud83c\udf1f Increase content diversity to prevent filter bubbles",
+    "\u2728 Improve content quality filtering"
+  ],
+  "overall_score": 119.29545454545453,
+  "overall_grade": "A"
+}
