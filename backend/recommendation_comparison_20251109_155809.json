@@ -1,0 +1,216 @@
+{
+  "statistical_results": {
+    "system_name": "Statistical",
+    "total_evaluation_time": 0.69,
+    "avg_response_time": 0.0355,
+    "success_rate": 1.0,
+    "avg_precision": 0.316,
+    "avg_recall": 0.76,
+    "avg_f1_score": 0.441,
+    "avg_diversity_score": 0.969,
+    "avg_coverage_score": 0.294,
+    "avg_quality_score": 0.613,
+    "system_score": 68.5,
+    "successful_recommendations": 15,
+    "failed_recommendations": 0,
+    "total_tests": 15
+  },
+  "ai_results": {
+    "system_name": "Pure AI",
+    "total_evaluation_time": 2.94,
+    "avg_response_time": 0.1859,
+    "success_rate": 1.0,
+    "avg_precision": 0.253,
+    "avg_recall": 0.741,
+    "avg_f1_score": 0.372,
+    "avg_diversity_score": 0.96,
+    "avg_coverage_score": 0.304,
+    "avg_quality_score": 0.7,
+    "system_score": 61.8,
+    "successful_recommendations": 15,
+    "failed_recommendations": 0,
+    "total_tests": 15
+  },
+  "two_tower_results": {
+    "system_name": "Two-Tower",
+    "total_evaluation_time": 14.28,
+    "avg_response_time": 0.9424,
+    "success_rate": 1.0,
+    "avg_precision": 0.253,
+    "avg_recall": 0.656,
+    "avg_f1_score": 0.357,
+    "avg_diversity_score": 0.487,
+    "avg_coverage_score": 0.275,
+    "avg_quality_score": 0.452,
+    "system_score": 47.0,
+    "successful_recommendations": 15,
+    "failed_recommendations": 0,
+    "total_tests": 15
+  },
+  "comparison": {
+    "overall_winner": "Statistical",
+    "performance_comparison": {
+      "avg_response_time": {
+        "statistical_value": 0.0355,
+        "pure ai_value": 0.1859,
+        "two_tower_value": 0.9424,
+        "winner": "Statistical",
+        "best_value": 0.0355,
+        "all_values": {
+          "Statistical": 0.0355,
+          "Pure AI": 0.1859,
+          "Two-Tower": 0.9424
+        }
+      },
+      "success_rate": {
+        "statistical_value": 1.0,
+        "pure ai_value": 1.0,
+        "two_tower_value": 1.0,
+        "winner": "Statistical",
+        "best_value": 1.0,
+        "all_values": {
+          "Statistical": 1.0,
+          "Pure AI": 1.0,
+          "Two-Tower": 1.0
+        }
+      },
+      "avg_precision": {
+        "statistical_value": 0.316,
+        "pure ai_value": 0.253,
+        "two_tower_value": 0.253,
+        "winner": "Statistical",
+        "best_value": 0.316,
+        "all_values": {
+          "Statistical": 0.316,
+          "Pure AI": 0.253,
+          "Two-Tower": 0.253
+        }
+      },
+      "avg_recall": {
+        "statistical_value": 0.76,
+        "pure ai_value": 0.741,
+        "two_tower_value": 0.656,
+        "winner": "Statistical",
+        "best_value": 0.76,
+        "all_values": {
+          "Statistical": 0.76,
+          "Pure AI": 0.741,
+          "Two-Tower": 0.656
+        }
+      },
+      "avg_f1_score": {
+        "statistical_value": 0.441,
+        "pure ai_value": 0.372,
+        "two_tower_value": 0.357,
+        "winner": "Statistical",
+        "best_value": 0.441,
+        "all_values": {
+          "Statistical": 0.441,
+          "Pure AI": 0.372,
+          "Two-Tower": 0.357
+        }
+      },
+      "avg_diversity_score": {
+        "statistical_value": 0.969,
+        "pure ai_value": 0.96,
+        "two_tower_value": 0.487,
+        "winner": "Statistical",
+        "best_value": 0.969,
+        "all_values": {
+          "Statistical": 0.969,
+          "Pure AI": 0.96,
+          "Two-Tower": 0.487
+        }
+      },
+      "avg_coverage_score": {
+        "statistical_value": 0.294,
+        "pure ai_value": 0.304,
+        "two_tower_value": 0.275,
+        "winner": "Pure AI",
+        "best_value": 0.304,
+        "all_values": {
+          "Statistical": 0.294,
+          "Pure AI": 0.304,
+          "Two-Tower": 0.275
+        }
+      },
+      "system_score": {
+        "statistical_value": 68.5,
+        "pure ai_value": 61.8,
+        "two_tower_value": 47.0,
+        "winner": "Statistical",
+        "best_value": 68.5,
+        "all_values": {
+          "Statistical": 68.5,
+          "Pure AI": 61.8,
+          "Two-Tower": 47.0
+        }
+      }
+    },
+    "recommendations": [
+      "Statistical system shows the best overall performance (68.5)",
+      "Performance ranking: Statistical (68.5) > Pure AI (61.8) > Two-Tower (47.0)",
+      "Statistical system is fastest for real-time recommendations",
+      "Statistical provides the most accurate recommendations",
+      "Statistical offers the best content diversity"
+    ],
+    "system_ranking": [
+      [
+        "Statistical",
+        68.5
+      ],
+      [
+        "Pure AI",
+        61.8
+      ],
+      [
+        "Two-Tower",
+        47.0
+      ]
+    ],
+    "summary": {
+      "strengths_by_system": {
+        "Statistical": [
+          "Response Time: 0.035 (Winner)",
+          "Success Rate: 1.000 (Winner)",
+          "Precision: 0.316 (Winner)",
+          "Recall: 0.760 (Winner)",
+          "F1 Score: 0.441 (Winner)",
+          "Diversity Score: 0.969 (Winner)",
+          "System Score: 68.500 (Winner)"
+        ],
+        "Pure AI": [
+          "Coverage Score: 0.304 (Winner)"
+        ],
+        "Two-Tower": []
+      },
+      "key_insights": [
+        "Speed: Statistical is 26.5x faster than Two-Tower",
+        "Accuracy: Statistical achieves 0.4% F1-Score",
+        "Diversity: Statistical provides 1.0% content diversity"
+      ]
+    }
+  },
+  "test_metadata": {
+    "test_users": [
+      309,
+      853,
+      851,
+      720,
+      472,
+      383,
+      939,
+      798,
+      704,
+      490,
+      143,
+      815,
+      807,
+      637,
+      479
+    ],
+    "evaluation_date": "2025-11-09T15:58:09.946379",
+    "num_test_users": 15,
+    "two_tower_trained": true
+  }
+}

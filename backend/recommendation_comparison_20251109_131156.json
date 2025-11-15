@@ -1,0 +1,141 @@
+{
+  "statistical_results": {
+    "system_name": "Statistical",
+    "total_evaluation_time": 0.99,
+    "avg_response_time": 0.0545,
+    "success_rate": 1.0,
+    "avg_quality_score": 0.598,
+    "avg_engagement_rate": 0.02,
+    "avg_diversity_score": 0.598,
+    "avg_novelty_score": 0.252,
+    "avg_click_through_rate": 0.214,
+    "system_score": 65.5,
+    "successful_recommendations": 15,
+    "failed_recommendations": 0,
+    "total_tests": 15
+  },
+  "ai_results": {
+    "system_name": "Pure AI",
+    "total_evaluation_time": 3.57,
+    "avg_response_time": 0.2264,
+    "success_rate": 1.0,
+    "avg_quality_score": 0.651,
+    "avg_engagement_rate": 0.06,
+    "avg_diversity_score": 0.651,
+    "avg_novelty_score": 0.351,
+    "avg_click_through_rate": 0.52,
+    "system_score": 53.8,
+    "successful_recommendations": 15,
+    "failed_recommendations": 0,
+    "total_tests": 15
+  },
+  "comparison": {
+    "overall_winner": "Statistical",
+    "score_difference": 11.7,
+    "performance_comparison": {
+      "avg_response_time": {
+        "statistical_value": 0.0545,
+        "ai_value": 0.2264,
+        "winner": "Statistical",
+        "improvement_percentage": 75.9,
+        "difference": 0.1719
+      },
+      "success_rate": {
+        "statistical_value": 1.0,
+        "ai_value": 1.0,
+        "winner": "Pure AI",
+        "improvement_percentage": 0.0,
+        "difference": 0.0
+      },
+      "avg_quality_score": {
+        "statistical_value": 0.598,
+        "ai_value": 0.651,
+        "winner": "Pure AI",
+        "improvement_percentage": 8.1,
+        "difference": 0.053
+      },
+      "avg_engagement_rate": {
+        "statistical_value": 0.02,
+        "ai_value": 0.06,
+        "winner": "Pure AI",
+        "improvement_percentage": 66.7,
+        "difference": 0.04
+      },
+      "avg_diversity_score": {
+        "statistical_value": 0.598,
+        "ai_value": 0.651,
+        "winner": "Pure AI",
+        "improvement_percentage": 8.1,
+        "difference": 0.053
+      },
+      "avg_novelty_score": {
+        "statistical_value": 0.252,
+        "ai_value": 0.351,
+        "winner": "Pure AI",
+        "improvement_percentage": 28.2,
+        "difference": 0.099
+      },
+      "avg_click_through_rate": {
+        "statistical_value": 0.214,
+        "ai_value": 0.52,
+        "winner": "Pure AI",
+        "improvement_percentage": 58.8,
+        "difference": 0.306
+      },
+      "system_score": {
+        "statistical_value": 65.5,
+        "ai_value": 53.8,
+        "winner": "Statistical",
+        "improvement_percentage": 17.9,
+        "difference": 11.7
+      }
+    },
+    "recommendations": [
+      "Statistical system shows superior overall performance",
+      "Statistical system is faster for real-time recommendations",
+      "Pure AI provides higher quality, more personalized recommendations",
+      "Pure AI offers better content diversity"
+    ],
+    "summary": {
+      "statistical_strengths": [
+        "Response Time (75.9% better)",
+        "System Score (17.9% better)"
+      ],
+      "ai_strengths": [
+        "Quality Score (8.1% better)",
+        "Engagement Rate (66.7% better)",
+        "Diversity Score (8.1% better)",
+        "Novelty Score (28.2% better)",
+        "Click Through Rate (58.8% better)"
+      ],
+      "key_differences": [
+        "Response Time: Statistical is 75.9% better",
+        "Engagement Rate: Pure AI is 66.7% better",
+        "Novelty Score: Pure AI is 28.2% better",
+        "Click Through Rate: Pure AI is 58.8% better",
+        "System Score: Statistical is 17.9% better"
+      ]
+    }
+  },
+  "test_metadata": {
+    "test_users": [
+      309,
+      853,
+      851,
+      720,
+      472,
+      383,
+      939,
+      798,
+      704,
+      490,
+      143,
+      815,
+      807,
+      637,
+      479
+    ],
+    "evaluation_date": "2025-11-09T13:11:56.089799",
+    "num_test_users": 15
+  }
+}

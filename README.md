@@ -1,342 +1,227 @@
-# SocialHub - Modern Social Media Platform
+# Social Hub - AI-Powered Recommendation System
 
-A full-stack social media platform with React.js frontend and FastAPI backend, featuring Google OAuth authentication and modern design.
+A comprehensive social media platform with multiple AI-powered recommendation systems, featuring statistical methods, matrix factorization, two-tower deep learning, and Vision Transformer architectures.
 
-## 🎨 Features
+## Table of Contents
 
-### Authentication & User Management
-- **Email/Password Registration & Login** with validation
-- **Google OAuth Integration** - Sign up/Login with Google
-- **JWT Token Authentication** for secure API access
-- **User Profile Management** with profile pictures from Google
+- [System Architecture](#system-architecture)
+- [Tech Stack](#tech-stack)
+- [Recommendation Systems](#recommendation-systems)
+- [System Selection](#system-selection)
+- [Evaluation Metrics](#evaluation-metrics)
 
-### Frontend Features
-- **Modern UI** with pastel design and smooth animations
-- **Responsive Design** - Mobile-first approach
-- **Feed System** - Social posts with interactions
-- **Real-time Notifications** system
-- **Chat/Messaging** interface
-- **Profile Management** with edit capabilities
+## System Architecture
 
-### Backend Features
-- **FastAPI REST API** with automatic documentation
-- **SQLite Database** with SQLAlchemy ORM
-- **Password Hashing** with bcrypt
-- **JWT Authentication** with refresh tokens
-- **Google OAuth Verification** server-side
-- **CORS Enabled** for frontend integration
+### Overall System Architecture
 
-## 🚀 Complete Setup Guide
-
-### Prerequisites
-- **Node.js** (16.x or higher)
-- **Python** (3.8 or higher)
-- **Git**
-- **Google Cloud Console** account (for OAuth)
-
----
-
-## 📋 Step 1: Project Setup
-
-### 1.1 Clone the Repository
-```bash
-git clone <repository-url>
-cd Social-Hub
+```
+┌─────────────────┐    HTTP/REST    ┌─────────────────┐
+│   Frontend      │ ──────────────► │   Backend API   │
+│   (React + TS)  │                 │   (FastAPI)     │
+└─────────────────┘                 └─────────────────┘
+                                            │
+                                            ▼
+                                   ┌─────────────────┐
+                                   │ Recommendation  │
+                                   │    Engine       │
+                                   └─────────────────┘
+                                            │
+                                            ▼
+┌─────────────────┐      Queries    ┌─────────────────┐
+│  File Storage   │ ◄──────────────► │   Database      │
+│ (Local Files)   │                 │   (SQLite)      │
+└─────────────────┘                 └─────────────────┘
 ```
 
-### 1.2 Project Structure
+### Backend Structure
+
 ```
-Social-Hub/
-├── src/                    # Frontend React app
-├── backend/               # FastAPI backend
-├── public/               # Static assets
-├── .env.example         # Frontend environment template
-├── backend/.env.example # Backend environment template
-└── README.md           # This file
-```
-
----
-
-## 🔑 Step 2: Google OAuth Setup
-
-### 2.1 Create Google Cloud Project
-1. Go to [Google Cloud Console](https://console.cloud.google.com/)
-2. Click **"Select a project"** → **"New Project"**
-3. Enter project name: **"Social Hub"**
-4. Click **"Create"**
-
-### 2.2 Enable Google Identity API
-1. Go to **"APIs & Services"** → **"Library"**
-2. Search for **"Google Identity"**
-3. Click **"Enable"**
-
-### 2.3 Configure OAuth Consent Screen
-1. Go to **"APIs & Services"** → **"OAuth consent screen"**
-2. Choose **"External"** → **"Create"**
-3. Fill required fields:
-   - **App name**: "Social Hub"
-   - **User support email**: Your email
-   - **Developer contact**: Your email
-4. Click **"Save and Continue"** through all steps
-
-### 2.4 Create OAuth Credentials
-1. Go to **"APIs & Services"** → **"Credentials"**
-2. Click **"Create Credentials"** → **"OAuth client ID"**
-3. Select **"Web application"**
-4. Add **Authorized JavaScript origins**:
-   ```
-   http://localhost:8080
-   http://localhost:5173
-   http://localhost:3000
-   ```
-5. Click **"Create"**
-6. **Copy the Client ID** - you'll need this!
-
----
-
-## 🗄️ Step 3: Database Setup
-
-The database will be automatically created when you first run the backend. No manual setup required!
-
-- **Database**: SQLite (automatically created as `backend/social_hub.db`)
-- **Tables**: Users table with Google OAuth support
-- **Migrations**: Handled automatically by SQLAlchemy
-
----
-
-## 🔧 Step 4: Environment Configuration
-
-### 4.1 Frontend Environment Setup
-```bash
-# Copy the example file
-cp .env.example .env
+Backend Components:
+├── FastAPI Application (main.py)
+├── Database Layer (SQLite)
+├── Authentication (JWT + Google OAuth)
+├── File Storage (Local uploads/)
+├── Recommendation Engine
+└── API Endpoints
 ```
 
-Edit `.env` and update:
-```env
-# Backend API URL
-VITE_API_URL=http://localhost:8001
-
-# Google OAuth Client ID (from Step 2.4)
-VITE_GOOGLE_CLIENT_ID=your-actual-client-id-here.apps.googleusercontent.com
-```
-
-### 4.2 Backend Environment Setup
-```bash
-# Copy the example file
-cp backend/.env.example backend/.env
-```
-
-Edit `backend/.env` and update:
-```env
-# JWT Secret - Generate a secure random string
-SECRET_KEY=your-super-secret-jwt-key-here-make-it-very-long-and-random
-
-# Database (SQLite file will be created automatically)
-DATABASE_URL=sqlite:///./social_hub.db
-
-# JWT expiration (in minutes)
-ACCESS_TOKEN_EXPIRE_MINUTES=30
-
-# Google OAuth (from Step 2.4)
-GOOGLE_CLIENT_ID=your-actual-client-id-here.apps.googleusercontent.com
-GOOGLE_CLIENT_SECRET=your-google-client-secret-here
-```
-
----
-
-## 🎯 Step 5: Backend Setup & Installation
-
-### 5.1 Navigate to Backend Directory
-```bash
-cd backend
-```
-
-### 5.2 Create Python Virtual Environment
-```bash
-# Create virtual environment
-python3 -m venv venv
-
-# Activate virtual environment
-# On Linux/Mac:
-source venv/bin/activate
-# On Windows:
-# venv\Scripts\activate
-```
-
-### 5.3 Install Python Dependencies
-```bash
-pip install -r requirements.txt
-```
-
-### 5.4 Start Backend Server
-```bash
-python main.py
-```
-
-✅ **Backend should now be running on**: `http://localhost:8001`
-- API Documentation: `http://localhost:8001/docs`
-- Health Check: `http://localhost:8001/health`
-
----
-
-## 🎨 Step 6: Frontend Setup & Installation
-
-### 6.1 Navigate to Project Root (open new terminal)
-```bash
-cd /path/to/Social-Hub
-```
-
-### 6.2 Install Node.js Dependencies
-```bash
-npm install
-```
-
-### 6.3 Start Frontend Development Server
-```bash
-npm run dev
-```
-
-✅ **Frontend should now be running on**: `http://localhost:8080`
-
----
-
-## 🧪 Step 7: Testing the Application
-
-### 7.1 Test Regular Authentication
-1. Go to `http://localhost:8080/signup`
-2. Fill in the signup form
-3. Create account with email/password
-4. Try logging in with created credentials
-
-### 7.2 Test Google OAuth
-1. Go to `http://localhost:8080/signup` or `http://localhost:8080/login`
-2. Click **"Sign in with Google"** button
-3. Complete Google OAuth flow
-4. Verify you're redirected to the feed
-
-### 7.3 Verify Database Storage
-```bash
-# Check users in database
-sqlite3 backend/social_hub.db "SELECT * FROM users;"
-```
-
----
-
-## 📡 API Endpoints
-
-### Authentication Endpoints
-- `POST /auth/register` - Register with email/password
-- `POST /auth/login` - Login with email/password
-- `POST /auth/google` - Google OAuth authentication
-- `GET /auth/me` - Get current user profile
-- `POST /auth/logout` - Logout user
-
-### Health & Info
-- `GET /` - Welcome message
-- `GET /health` - Health check
-- `GET /docs` - Interactive API documentation
-
----
-
-## 🛠 Technology Stack
+## Tech Stack
 
 ### Frontend
-- **React 18** with TypeScript
-- **Vite** for build tooling
-- **Tailwind CSS** for styling
-- **shadcn/ui** component library
-- **React Router** for navigation
-- **Lucide React** for icons
+- **Framework:** React with TypeScript
+- **Styling:** Tailwind CSS
+- **Build Tool:** Vite
+- **State Management:** React Hooks
 
 ### Backend
-- **FastAPI** for REST API
-- **SQLAlchemy** for ORM
-- **SQLite** database
-- **JWT** for authentication
-- **Google OAuth** for social login
-- **bcrypt** for password hashing
-- **CORS** middleware enabled
+- **API Framework:** FastAPI
+- **Database:** SQLite
+- **ORM:** SQLAlchemy
+- **Authentication:** JWT + Google OAuth + Appwrite
+- **File Handling:** Local file storage
+- **Validation:** Pydantic models
 
-### Authentication Flow
-- **JWT Tokens** for session management
-- **Google OAuth 2.0** integration
-- **Password encryption** with bcrypt
-- **Token-based API authentication**
+### Machine Learning
+- **Core Libraries:** NumPy, Pandas, Scikit-learn
+- **Deep Learning:** TensorFlow
+- **Computer Vision:** OpenCV, Pillow
+- **NLP:** Basic text processing
 
----
+## Recommendation Systems
 
-## 🎨 Design Features
+Our platform implements four different recommendation approaches, each designed for different use cases and computational requirements.
 
-- **Pastel Color Scheme**: Modern, soft professional colors
-- **Responsive Design**: Mobile-first approach
-- **Smooth Animations**: CSS transitions and hover effects
-- **Component Library**: Reusable UI components
-- **Modern Typography**: Poppins font family
+### 1. Statistical Hybrid System
 
----
+This system combines collaborative filtering and content-based filtering using traditional statistical methods. It analyzes user interaction patterns and content similarities to generate recommendations without requiring machine learning training.
 
-## 🔧 Development Scripts
+The process involves extracting user preferences from historical interactions, finding similar users through cosine similarity, matching content attributes like location and category preferences, and combining both approaches with intelligent diversity algorithms to ensure varied recommendations.
 
-### Frontend
-```bash
-npm run dev      # Start development server
-npm run build    # Build for production
-npm run preview  # Preview production build
-npm run lint     # Run linting
+**Architecture:**
+```
+User Request → User Profiling → Collaborative Filtering
+                    ↓               ↓
+           Content Analysis → Hybrid Combination
+                    ↓               ↓
+           Diversity Rules → Final Recommendations
 ```
 
-### Backend
-```bash
-python main.py              # Start development server
-uvicorn main:app --reload   # Alternative start method
+**Pros:**
+- Fast inference and real-time ready
+- No training required
+- Interpretable results
+- Production-ready implementation
+- High success rate
+
+**Cons:**
+- No learning capability
+- Rule-based approach limitations
+- Cold start problems for new users
+- Manual parameter tuning required
+
+### 2. Matrix Factorization AI
+
+This system uses Non-negative Matrix Factorization to decompose user-item interaction matrices into latent factors, enabling pure machine learning recommendations. It learns hidden patterns in user behavior and item characteristics automatically.
+
+The process creates a user-item interaction matrix from historical data, applies NMF algorithm to discover latent factors representing user preferences and item features, then generates recommendations by computing similarity scores between learned user and item embeddings.
+
+**Architecture:**
+```
+User-Item Matrix → NMF Algorithm → Latent Factors
+        ↓              ↓              ↓
+Interaction Data → Learning Process → User/Item Embeddings
+        ↓              ↓              ↓
+New User Request → Similarity Calc → AI Recommendations
 ```
 
----
+**Pros:**
+- Pure machine learning approach
+- Learns hidden user behavior patterns
+- Automatic feature discovery
+- Scalable to large datasets
+- High AI confidence scores
 
-## 🚨 Troubleshooting
+**Cons:**
+- Requires sufficient training data
+- Black box predictions
+- Cold start issues
+- Need for periodic retraining
 
-### Common Issues & Solutions
+### 3. Two-Tower Deep Learning
 
-#### Google OAuth Errors
-- **"OAuth client not found"**: Check Client ID in `.env` files
-- **"Invalid origins"**: Add your domain to Google Console
-- **"Token used too early"**: Sync system clock with NTP
+This system uses separate neural networks for users and content, creating dense embeddings that capture complex patterns. The two-tower architecture can handle multimodal data including text, images, and user behavior.
 
-#### Database Issues
-- **"no such column"**: Delete `social_hub.db` and restart backend
-- **Connection errors**: Check database permissions
+The process involves training separate neural networks for user features and content features, generating embeddings from each tower, computing similarity between user and content embeddings, and ranking recommendations based on learned representations.
 
-#### CORS Issues
-- **Frontend can't reach backend**: Verify backend is running on port 8001
-- **CORS blocked**: Check CORS origins in `main.py`
+**Without Images Architecture:**
+```
+User Features → User Tower (NN) → User Embedding
+     ↓               ↓                    ↓
+Content Features → Content Tower (NN) → Content Embedding
+     ↓               ↓                    ↓
+Cosine Similarity → Ranking → Final Recommendations
+```
 
-#### Environment Variables
-- **Variables not loading**: Restart development servers after changing `.env`
-- **Missing variables**: Compare with `.env.example` files
+**With Images Architecture:**
+```
+User History → LSTM → User Embedding
+     ↓           ↓          ↓
+Images → CNN → Visual Embedding
+     ↓           ↓          ↓
+Text → TF-IDF → Text Embedding
+     ↓           ↓          ↓
+Multimodal Fusion → Final Embedding → Recommendations
+```
 
----
+**Pros:**
+- Deep learning architecture
+- Neural embeddings capture complex patterns
+- Multimodal capabilities
+- Scalable framework
+- End-to-end training
 
-## 📄 License
+**Cons:**
+- Requires GPU for training
+- Complex architecture and deployment
+- Longer inference time
+- Need for hyperparameter tuning
 
-This project is open source and available under the [MIT License](LICENSE).
+### 4. Vision Transformer + LSTM
 
-## 🤝 Contributing
+This represents the most advanced approach, using Vision Transformers for image understanding and LSTM with self-attention for sequential user modeling. It provides state-of-the-art multimodal recommendations by fusing visual and temporal features.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+The process involves processing images through Vision Transformer to extract patch-based visual features, using LSTM with self-attention to model user interaction sequences over time, applying cross-modal attention to fuse image and user features, and generating final recommendations through advanced neural networks.
 
----
+**Architecture:**
+```
+Travel Images → Vision Transformer → Visual Embeddings
+        ↓              ↓                      ↓
+    Patch-based → Multi-head Attention → Global Visual Features
+        ↓              ↓                      ↓
+User Sequences → LSTM + Self-Attention → Temporal Embeddings
+        ↓              ↓                      ↓
+Cross-Modal Attention → Fusion Network → Final Recommendations
+```
 
-## 📞 Support
+**Pros:**
+- State-of-the-art AI technology
+- Advanced image understanding
+- Temporal user modeling
+- Multimodal fusion capabilities
+- Maximum personalization potential
 
-If you encounter any issues during setup:
-1. Check the troubleshooting section above
-2. Verify all environment variables are set correctly
-3. Ensure both frontend and backend servers are running
-4. Check browser console and terminal for error messages
+**Cons:**
+- Extremely high computational requirements
+- Very slow training process
+- Requires large labeled datasets
+- Complex deployment infrastructure
+- High operational costs
 
-Built with ❤️ using React.js, FastAPI, and modern web technologies
+## System Selection
+
+For our social media platform focusing on travel content, we have chosen the **Vision Transformer + LSTM** as our advanced recommendation engine.
+
+### Why Vision Transformer + LSTM
+
+The Vision Transformer + LSTM system represents the most advanced and sophisticated approach for travel content recommendations. This cutting-edge system is specifically designed to handle the visual-rich nature of travel social media platforms where images are the primary content type.
+
+For travel content, visual understanding is crucial as users make decisions based on the aesthetic appeal and visual similarity of destinations. The Vision Transformer excels at understanding complex visual patterns in travel images, from architectural styles to natural landscapes, while the LSTM component captures temporal user preferences and seasonal travel patterns.
+
+This system provides maximum personalization by learning both what users visually prefer and how their preferences evolve over time. The multimodal fusion capability allows the system to understand the relationship between visual content, textual descriptions, and user behavior patterns, resulting in highly accurate and contextually relevant travel recommendations.
+
+While this approach requires significant computational resources and infrastructure investment, it provides unmatched recommendation quality and user engagement for a travel-focused platform where visual content drives user decisions.
+
+## Evaluation Metrics
+
+The following metrics can be used to evaluate and compare recommendation system performance:
+
+### Accuracy Metrics
+- **Precision:** Percentage of recommended items that are relevant
+- **Recall:** Percentage of relevant items that are recommended  
+- **F1-Score:** Harmonic mean of precision and recall
+
+### Diversity and Coverage Metrics
+- **Diversity Score:** Measure of variety in recommendation categories
+
+### System Performance Metrics
+- **Response Time:** Latency from request to recommendation delivery
