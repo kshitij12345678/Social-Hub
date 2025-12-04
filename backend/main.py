@@ -56,7 +56,13 @@ security = HTTPBearer()
 # Create database tables on startup
 @app.on_event("startup")
 async def startup_event():
-    create_tables()
+    try:
+        print("🔨 Creating database tables...")
+        create_tables()
+        print("✅ Database tables created/verified successfully!")
+    except Exception as e:
+        print(f"⚠️  Warning: Could not create database tables: {e}")
+        print("   This is normal if tables already exist or database is not accessible.")
 
 # Root endpoint
 @app.get("/", response_model=Message)

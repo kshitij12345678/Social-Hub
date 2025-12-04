@@ -6,11 +6,20 @@ import os
 import enum
 import uuid
 
-# Database URL - using SQLite for simplicity
-DATABASE_URL = "sqlite:///./social_hub.db"
+# Database URL - using PostgreSQL
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "postgresql+psycopg://socialhub:socialhub_pass@localhost:5432/socialhub_db"
+)
 
-# Create engine
-engine = create_engine(DATABASE_URL, connect_args={"check_same_thread": False})
+# Create engine with connection pooling
+engine = create_engine(
+    DATABASE_URL,
+    pool_size=10,
+    max_overflow=20,
+    pool_pre_ping=True,
+    echo=False
+)
 
 # Create session
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
@@ -33,7 +42,7 @@ class User(Base):
     bio = Column(String(500), nullable=True)  # User bio/description
     hashed_password = Column(String(255), nullable=True)  # Nullable for Google users
     google_id = Column(String(255), unique=True, nullable=True, index=True)  # Google user ID
-    auth_provider = Column(Enum(AuthProvider), default=AuthProvider.LOCAL)  # Track auth method
+    auth_provider = Column(Enum(AuthProvider, native_enum=False), default=AuthProvider.LOCAL)  # Track auth method
     profile_picture_url = Column(String(500), nullable=True)  # For Google profile pics
     
     # Rocket.Chat credentials for SSO
@@ -108,7 +117,7 @@ class PinnedMessage(Base):
     pinned_at = Column(DateTime, default=datetime.utcnow, index=True)
     
     # Relationships
-    pinner = relationship("User", foreign_keys=[pinned_by])
+    pinner = relationship("User", foreign_keys=[pinned_by], overlaps="pinned_messages")
     
     # Ensure unique message per room
     __table_args__ = ({"extend_existing": True},)
@@ -116,7 +125,7 @@ class PinnedMessage(Base):
 # Add relationship to User model
 User.chat_messages = relationship("ChatMessage", back_populates="user", order_by=ChatMessage.created_at)
 User.groups = relationship("GroupMember", back_populates="user")
-User.pinned_messages = relationship("PinnedMessage", foreign_keys=[PinnedMessage.pinned_by])
+User.pinned_messages = relationship("PinnedMessage", foreign_keys=[PinnedMessage.pinned_by], overlaps="pinner")
 
 # Create tables
 def create_tables():
