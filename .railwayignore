@@ -1,0 +1,15 @@
+# Railway ignore file - ignore frontend files
+package.json
+package-lock.json
+bun.lockb
+node_modules/
+src/
+public/
+dist/
+vite.config.ts
+tsconfig.json
+tailwind.config.ts
+postcss.config.js
+eslint.config.js
+index.html
+
