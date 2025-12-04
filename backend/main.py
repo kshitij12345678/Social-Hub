@@ -42,7 +42,11 @@ app.add_middleware(
         "http://localhost:8000", 
         "http://localhost:8080",
         "http://localhost:8081",  # Add the current frontend port
-        "https://accounts.google.com"  # Add Google's domain
+        "https://accounts.google.com",  # Add Google's domain
+        # Add your frontend production URLs here after deployment
+        # "https://your-frontend.vercel.app",
+        # "https://your-frontend.netlify.app",
+        # "https://your-frontend.railway.app",
     ],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],

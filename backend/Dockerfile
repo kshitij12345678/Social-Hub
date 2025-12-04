@@ -22,9 +22,10 @@ COPY . .
 # Create uploads directory
 RUN mkdir -p uploads/profile_pictures uploads/chat_images
 
-# Expose port (Railway sets PORT env var)
-EXPOSE $PORT
+# Expose port (Railway will set PORT env var at runtime)
+EXPOSE 8000
 
-# Start the application
-CMD uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}
+# Start the application using shell to expand PORT variable
+# Railway sets PORT environment variable dynamically
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port ${PORT:-8000}"]
 
