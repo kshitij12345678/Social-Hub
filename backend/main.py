@@ -1262,6 +1262,18 @@ async def get_dm_messages(
                         # Already full URL, use as is
                         pass
                     
+                    # Add auth tokens to URL for secure access
+                    user_headers = await rocket_client.get_user_headers(
+                        social_hub_user_email=current_user.email,
+                        social_hub_user_name=current_user.full_name,
+                        social_hub_user_id=str(current_user.id),
+                        db_session=db
+                    )
+                    rc_token = user_headers.get('X-Auth-Token', '')
+                    rc_uid = user_headers.get('X-User-Id', '')
+                    if rc_token and rc_uid and image_url:
+                        image_url = f"{image_url}?rc_uid={rc_uid}&rc_token={rc_token}"
+                    
                     attachments.append({
                         "id": att.get("_id", ""),
                         "title": att.get("title", ""),
@@ -1279,6 +1291,18 @@ async def get_dm_messages(
                 file_url = file_data.get("url", "")
                 if file_url and not file_url.startswith("http"):
                     file_url = f"{rocket_url}{file_url if file_url.startswith('/') else '/' + file_url}"
+                
+                # Add auth tokens to URL for secure access
+                user_headers = await rocket_client.get_user_headers(
+                    social_hub_user_email=current_user.email,
+                    social_hub_user_name=current_user.full_name,
+                    social_hub_user_id=str(current_user.id),
+                    db_session=db
+                )
+                rc_token = user_headers.get('X-Auth-Token', '')
+                rc_uid = user_headers.get('X-User-Id', '')
+                if rc_token and rc_uid and file_url:
+                    file_url = f"{file_url}?rc_uid={rc_uid}&rc_token={rc_token}"
                 
                 attachments.append({
                     "id": file_data.get("_id", ""),
@@ -2075,13 +2099,25 @@ async def get_channel_messages_by_id(
                         print(f"DEBUG: Using full URL as is: {image_url}")
                     print(f"DEBUG: Final image_url: {image_url}")
                     
+                    # Add auth tokens to URL for secure access
+                    user_headers = await rocket_client.get_user_headers(
+                        social_hub_user_email=current_user.email,
+                        social_hub_user_name=current_user.full_name,
+                        social_hub_user_id=str(current_user.id),
+                        db_session=db
+                    )
+                    rc_token = user_headers.get('X-Auth-Token', '')
+                    rc_uid = user_headers.get('X-User-Id', '')
+                    if rc_token and rc_uid and image_url:
+                        image_url = f"{image_url}?rc_uid={rc_uid}&rc_token={rc_token}"
+                        print(f"DEBUG: Added auth tokens to URL: {image_url[:80]}...")
+                    
                     # Get file type and size - use image_type if available
                     attachment_type = att.get("image_type") or att.get("type", "application/octet-stream")
                     attachment_size = att.get("image_size") or att.get("size") or att.get("size_bytes") or att.get("sizeLength") or 0
-                    
+                    print(f"This is the image_URL sent from backend: {image_url}")
                     # Check if we have a base64 preview
                     image_preview = att.get("image_preview")
-                    
                     attachment_data = {
                         "id": att.get("_id", ""),
                         "title": att.get("title", ""),
@@ -2102,6 +2138,18 @@ async def get_channel_messages_by_id(
                 file_url = file_data.get("url", "")
                 if file_url and not file_url.startswith("http"):
                     file_url = f"{rocket_url}{file_url if file_url.startswith('/') else '/' + file_url}"
+                
+                # Add auth tokens to URL for secure access
+                user_headers = await rocket_client.get_user_headers(
+                    social_hub_user_email=current_user.email,
+                    social_hub_user_name=current_user.full_name,
+                    social_hub_user_id=str(current_user.id),
+                    db_session=db
+                )
+                rc_token = user_headers.get('X-Auth-Token', '')
+                rc_uid = user_headers.get('X-User-Id', '')
+                if rc_token and rc_uid and file_url:
+                    file_url = f"{file_url}?rc_uid={rc_uid}&rc_token={rc_token}"
                 
                 attachments.append({
                     "id": file_data.get("_id", ""),
