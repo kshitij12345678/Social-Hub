@@ -701,7 +701,7 @@ class RocketChatClient:
                             "offset": offset
                         }
                     )
-                    
+                    print(f"This is the api call: f\"{self.base_url}{api_endpoint} and room id is {room_id}\"")
                     if response.status_code == 200:
                         result = response.json()
                         if result.get('success'):

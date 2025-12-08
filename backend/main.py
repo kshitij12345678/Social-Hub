@@ -1936,6 +1936,10 @@ async def get_channel_messages_by_id(
                 print(f"DEBUG: Skipping non-dict message {i}")
                 continue
                 
+            if msg.get("t") == "message_pinned":
+                continue # Skip pinned message notifications
+            
+            print(f"Each message is shown as {msg}")
             user_data = msg.get("u", {})
             
             # Handle timestamp
@@ -2026,19 +2030,18 @@ async def get_channel_messages_by_id(
             message_text = msg.get("msg", "")
             
             # Generate custom messages for system events
-            if is_system_event and not message_text:
-                username = msg.get("u", {}).get("username", "Unknown")
-                print(f"🔄 DEBUG: Processing system event '{event_type}' for user '{username}'")
+            if is_system_event and message_text:
+                print(f"🔄 DEBUG: Processing system event '{event_type}' for message '{message_text}'")
                 if event_type == "uj":
-                    message_text = f"{username} joined the channel"
+                    message_text = f"{message_text} joined the channel"
                 elif event_type == "ul":
-                    message_text = f"{username} left the channel"
+                    message_text = f"{message_text} left the channel"
                 elif event_type == "r":
                     message_text = f"Room changed"
                 elif event_type == "au":
-                    message_text = f"{username} was added"
+                    message_text = f"{message_text} was added"
                 elif event_type == "ru":
-                    message_text = f"{username} was removed"
+                    message_text = f"{message_text} was removed"
                 print(f"✅ DEBUG: Generated custom message: '{message_text}'")
             
             # If msg is still empty and it's a system event, check attachments for the text
