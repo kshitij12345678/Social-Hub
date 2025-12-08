@@ -2131,36 +2131,6 @@ async def get_channel_messages_by_id(
                     print(f"DEBUG: Attachment data: {attachment_data}")
                     attachments.append(attachment_data)
             
-            # Also check for file field (single file uploads)
-            if msg.get("file"):
-                rocket_url = os.getenv('ROCKET_CHAT_URL', 'http://10.68.0.49:30082')
-                file_data = msg["file"]
-                file_url = file_data.get("url", "")
-                if file_url and not file_url.startswith("http"):
-                    file_url = f"{rocket_url}{file_url if file_url.startswith('/') else '/' + file_url}"
-                
-                # Add auth tokens to URL for secure access
-                user_headers = await rocket_client.get_user_headers(
-                    social_hub_user_email=current_user.email,
-                    social_hub_user_name=current_user.full_name,
-                    social_hub_user_id=str(current_user.id),
-                    db_session=db
-                )
-                rc_token = user_headers.get('X-Auth-Token', '')
-                rc_uid = user_headers.get('X-User-Id', '')
-                if rc_token and rc_uid and file_url:
-                    file_url = f"{file_url}?rc_uid={rc_uid}&rc_token={rc_token}"
-                
-                attachments.append({
-                    "id": file_data.get("_id", ""),
-                    "title": file_data.get("name", ""),
-                    "filename": file_data.get("name", ""),
-                    "url": file_url,
-                    "type": file_data.get("type", "application/octet-stream"),
-                    "size": file_data.get("size", 0),
-                    "preview": None
-                })
-            
             formatted_message = {
                 "id": msg.get("_id", f"msg-{i}"),
                 "text": message_text,
