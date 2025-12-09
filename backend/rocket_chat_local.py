@@ -493,7 +493,7 @@ class RocketChatClient:
                     result = response.json()
                     if result.get('success'):
                         group_id = result.get('group', {}).get('_id')
-                        print(f"✅ Successfully created private group '{group_name}' with ID: {group_id}")
+                        print(f"Successfully created private group '{group_name}' with ID: {group_id}")
                         return {
                             "success": True,
                             "group_id": group_id,
@@ -523,7 +523,7 @@ class RocketChatClient:
                 "username": username
             }
             
-            print(f"🔧 Adding member '{username}' to group '{group_id}'")
+            print(f"Adding member '{username}' to group '{group_id}'")
             
             async with httpx.AsyncClient(timeout=30.0) as client:
                 response = await client.post(
@@ -535,7 +535,7 @@ class RocketChatClient:
                 if response.status_code == 200:
                     result = response.json()
                     if result.get('success'):
-                        print(f"✅ Successfully added member '{username}' to group")
+                        print(f"Successfully added member '{username}' to group")
                         return {"success": True, "group": result.get('group', {})}
                     else:
                         error_msg = result.get('error', 'Unknown error')
@@ -1730,7 +1730,7 @@ class RocketChatClient:
     async def delete_group(self, group_id: str, user_headers: Dict = None) -> Dict:
         """Delete a group in Rocket.Chat"""
         try:
-            print(f"🗑️ Deleting group {group_id} from Rocket.Chat")
+            print(f"Deleting group {group_id} from Rocket.Chat")
             
             # Use user-specific headers if provided, otherwise use admin headers
             headers = user_headers if user_headers else self.headers
@@ -1751,7 +1751,7 @@ class RocketChatClient:
                 if response.status_code == 200:
                     result = response.json()
                     if result.get('success'):
-                        print(f"✅ Successfully deleted group from Rocket.Chat")
+                        print(f"Successfully deleted group from Rocket.Chat")
                         return {
                             "success": True,
                             "message": "Group deleted successfully"
@@ -1770,7 +1770,7 @@ class RocketChatClient:
     async def remove_member_from_group(self, group_id: str, username: str, user_headers: Dict = None) -> Dict:
         """Remove a member from a group in Rocket.Chat"""
         try:
-            print(f"👤➖ Removing user '{username}' from group {group_id} in Rocket.Chat")
+            print(f"Removing user '{username}' from group {group_id} in Rocket.Chat")
             
             # Use user-specific headers if provided, otherwise use admin headers
             headers = user_headers if user_headers else self.headers
@@ -1792,16 +1792,16 @@ class RocketChatClient:
                 if response.status_code == 200:
                     result = response.json()
                     if result.get('success'):
-                        print(f"✅ Successfully removed user '{username}' from group")
+                        print(f"Successfully removed user '{username}' from group")
                         return {
                             "success": True,
                             "message": f"User {username} removed successfully"
                         }
                     else:
-                        print(f"❌ Failed to remove user: {result.get('error', 'Unknown error')}")
+                        print(f"Failed to remove user: {result.get('error', 'Unknown error')}")
                         return {"success": False, "error": result.get('error', 'Unknown error')}
                 else:
-                    print(f"❌ Failed to remove user - HTTP {response.status_code}: {response.text}")
+                    print(f"Failed to remove user - HTTP {response.status_code}: {response.text}")
                     return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
                     
         except Exception as e:
@@ -1811,7 +1811,7 @@ class RocketChatClient:
     async def get_rooms_list(self, user_headers: Dict = None) -> Dict:
         """Get all rooms (channels, groups, DMs) that the user is part of"""
         try:
-            print("🔍 Fetching rooms using rooms.get API for channels/groups and im.list for DMs")
+            print("Fetching rooms using rooms.get API for channels/groups and im.list for DMs")
             
             # Use user-specific headers if provided, otherwise use admin headers
             headers = user_headers if user_headers else self.headers
@@ -1985,7 +1985,6 @@ class RocketChatClient:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    print(f"DEBUG: /me API parsed response: {result}")
                     # Check if it's a success response
                     if result.get('success'):
                         username = result.get('username', '')

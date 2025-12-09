@@ -81,6 +81,7 @@ class ChatMessageResponse(BaseModel):
 class GroupCreate(BaseModel):
     name: str
     description: Optional[str] = None
+    member_emails: Optional[List[str]] = None  # Optional list of member emails to add during group creation
 
 class GroupUpdate(BaseModel):
     name: Optional[str] = None

@@ -2029,6 +2029,7 @@ async def get_channel_messages_by_id(
             
             # Convert reactions format
             reactions = {}
+            print(f"DEBUG: Message reactions raw data: {msg.get('reactions')}")
             if msg.get("reactions"):
                 for emoji, reaction_data in msg["reactions"].items():
                     # Convert colon format back to unicode for display
@@ -2757,7 +2758,7 @@ async def create_group_endpoint(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Create a new private group"""
+    """Create a new private group with optional members"""
     try:
         # Get user-specific headers for Rocket.Chat API calls
         user_headers = await rocket_client.get_user_headers(
@@ -2766,11 +2767,20 @@ async def create_group_endpoint(
             social_hub_user_id=str(current_user.id),
             db_session=db
         )
+        print(f"DEBUG: Creating group '{group_data.name}' for user: {current_user.email}")
+        
+        # Prepare member usernames for Rocket.Chat (convert emails to usernames)
+        initial_members = []
+        if group_data.member_emails:
+            for email in group_data.member_emails:
+                username = email.split('@')[0]
+                initial_members.append(username)
+                print(f"DEBUG: Adding member to group: {email} ({username})")
         
         # Create the group in Rocket.Chat first
         rocket_group_result = await rocket_client.create_private_group(
             group_name=group_data.name,
-            members=[],  # Start with empty members, add creator later
+            members=initial_members,  # Add initial members during group creation
             user_headers=user_headers
         )
         
@@ -2793,9 +2803,19 @@ async def create_group_endpoint(
         )
         
         if not add_creator_result.get('success'):
-            print(f"⚠️ Warning: Failed to add creator to Rocket.Chat group: {add_creator_result.get('error', 'Unknown error')}")
+            print(f"Warning: Failed to add creator to Rocket.Chat group: {add_creator_result.get('error', 'Unknown error')}")
         else:
-            print(f"✅ Successfully added creator '{creator_username}' to Rocket.Chat group")
+            print(f"Successfully added creator '{creator_username}' to Rocket.Chat group")
+        
+        # Add initial members to database
+        if group_data.member_emails:
+            for email in group_data.member_emails:
+                member_user = get_user_by_email(db, email)
+                if member_user:
+                    add_member_to_group(db, group.id, member_user.id)
+                    print(f"Added member {email} to group database")
+                else:
+                    print(f"Warning: User {email} not found in database")
         
         # Get group members for response
         members = get_group_members(db, group.id)
@@ -3004,7 +3024,7 @@ async def delete_group_endpoint(
         
         # If the group has a Rocket.Chat group ID, delete it from Rocket.Chat first
         if group.rocket_chat_group_id:
-            print(f"🗑️ Deleting group from Rocket.Chat. Group ID: {group.rocket_chat_group_id}")
+            print(f"Deleting group from Rocket.Chat. Group ID: {group.rocket_chat_group_id}")
             
             # Get user-specific headers for Rocket.Chat API calls
             user_headers = await rocket_client.get_user_headers(
@@ -3021,26 +3041,26 @@ async def delete_group_endpoint(
             )
             
             if delete_result.get('success'):
-                print(f"✅ Successfully deleted group from Rocket.Chat")
+                print(f"Successfully deleted group from Rocket.Chat")
             else:
                 error_msg = delete_result.get('error', 'Unknown error')
-                print(f"⚠️ Warning: Failed to delete group from Rocket.Chat: {error_msg}")
+                print(f"Warning: Failed to delete group from Rocket.Chat: {error_msg}")
                 # Continue with local deletion even if Rocket.Chat deletion fails
                 # The group might already be deleted or not exist on Rocket.Chat
         else:
-            print(f"ℹ️ Group has no Rocket.Chat ID, skipping Rocket.Chat deletion")
+            print(f"Group has no Rocket.Chat ID, skipping Rocket.Chat deletion")
         
         # Delete the group from local database
         success = delete_group(db, group_id)
         if not success:
             raise HTTPException(status_code=404, detail="Group not found")
         
-        print(f"✅ Successfully deleted group from local database")
+        print(f"Successfully deleted group from local database")
         return {"message": "Group deleted successfully"}
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ Error deleting group: {e}")
+        print(f"Error deleting group: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete group: {str(e)}")
 
 @app.post("/groups/{group_id}/members", response_model=GroupMemberResponse)
@@ -3140,7 +3160,7 @@ async def remove_member_from_group_endpoint(
         
         # If the group has a Rocket.Chat group ID, remove from Rocket.Chat first
         if group.rocket_chat_group_id:
-            print(f"👤➖ Removing user from Rocket.Chat. Group ID: {group.rocket_chat_group_id}, User: {user_to_remove.email}")
+            print(f" Removing user from Rocket.Chat. Group ID: {group.rocket_chat_group_id}, User: {user_to_remove.email}")
             
             # Get user-specific headers for Rocket.Chat API calls
             user_headers = await rocket_client.get_user_headers(
