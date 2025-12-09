@@ -703,6 +703,7 @@ class RocketChatClient:
                     )
                     if response.status_code == 200:
                         result = response.json()
+                        print(f"This is the result for channel messages: {result}")
                         if result.get('success'):
                             messages = result.get('messages', [])
                             if not messages:
@@ -950,10 +951,10 @@ class RocketChatClient:
             print(f"Exception getting thread messages: {e}")
             return []
 
-    async def send_thread_message(self, channel_name: str, parent_message_id: str, text: str, user_headers: Dict = None) -> Dict:
+    async def send_thread_message(self, room_id: str, parent_message_id: str, text: str, user_headers: Dict = None) -> Dict:
         """Send a message to a thread"""
         try:
-            print(f"DEBUG: send_thread_message called with channel_name: {channel_name}, parent_message_id: {parent_message_id}, text: {text}")
+            print(f"DEBUG: send_thread_message called with room_id: {room_id}, parent_message_id: {parent_message_id}, text: {text}")
             
             # Use user-specific headers if provided, otherwise use default headers
             headers = user_headers if user_headers else self.headers
@@ -961,19 +962,10 @@ class RocketChatClient:
             if not await self.ensure_authenticated():
                 return {"success": False, "error": "Authentication failed"}
             
-            # For thread messages, we need to determine if it's a channel or group
-            # Try group first (most common for private groups), then channel
-            print(f"DEBUG: Looking for group with name: {channel_name}")
-            channel_id = await self.get_channel_id_by_name(channel_name, "group", user_headers)
-            if not channel_id:
-                print(f"DEBUG: Group not found, trying channel with name: {channel_name}")
-                channel_id = await self.get_channel_id_by_name(channel_name, "channel", user_headers)
+            # room_id is passed directly, so we use it as is
+            channel_id = room_id
             
-            if not channel_id:
-                print(f"DEBUG: Neither group nor channel found for: {channel_name}")
-                return {"success": False, "error": f"Channel/Group '{channel_name}' not found"}
-            
-            print(f"DEBUG: Found channel/group ID: {channel_id}")
+            print(f"DEBUG: Using room_id: {channel_id}")
             
             message_data = {
                 "roomId": channel_id,

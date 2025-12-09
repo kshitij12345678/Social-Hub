@@ -1097,11 +1097,10 @@ async def get_general_messages(
                     }
                 }
                 formatted_messages.append(formatted_message)
-                print(f"DEBUG: Formatted message {i}: {formatted_message}")
         
         # Reverse to show oldest first (like chat history)
         formatted_messages.reverse()
-        
+
         print(f"DEBUG: Returning {len(formatted_messages)} messages from general channel")
         return formatted_messages
         
@@ -1211,15 +1210,6 @@ async def get_dm_messages(
             display_name = user_data.get("name", "Unknown")
             username = user_data.get("username", "")
             
-            # If we have a display name but no username, try to map it
-            if display_name and not username:
-                # Map known display names to usernames
-                name_to_username_map = {
-                    "AI_SE": "cs23mtech15009",
-                    "Ankush Chhabra": "ankush8"
-                }
-                username = name_to_username_map.get(display_name, display_name)
-            
             # Use username if available, otherwise fall back to display name
             sender_name = username or display_name
             
@@ -1264,6 +1254,9 @@ async def get_dm_messages(
                 except Exception as e:
                     print(f"DEBUG: Failed to fetch thread messages for {msg.get('_id', '')}: {e}")
             
+            for i in thread_messages:
+                print(f"DEBUG: Thread message: {i}")
+
             # Parse attachments from Rocket.Chat message
             attachments = []
             if msg.get("attachments"):
@@ -1325,6 +1318,10 @@ async def get_dm_messages(
             formatted_messages.append(formatted_message)
         
         formatted_messages.reverse()
+
+        for i in formatted_messages:
+            print(f"DEBUG: Final formatted DM message: {i}")
+
         return formatted_messages
         
     except Exception as e:
@@ -2078,7 +2075,7 @@ async def get_channel_messages_by_id(
                     message_text = f"{message_text} was added"
                 elif event_type == "ru":
                     message_text = f"{message_text} was removed"
-                print(f"✅ DEBUG: Generated custom message: '{message_text}'")
+                print(f"DEBUG: Generated custom message: '{message_text}'")
             
             # If msg is still empty and it's a system event, check attachments for the text
             if not message_text and is_system_event and msg.get("attachments"):
@@ -2164,6 +2161,9 @@ async def get_channel_messages_by_id(
         
         # Reverse to show oldest first (like chat history)
         formatted_messages.reverse()
+
+        for i in formatted_messages:
+            print(f"DEBUG: Formatted message: {i}")
         
         print(f"DEBUG: Returning {len(formatted_messages)} formatted messages with threads and reactions")
         return formatted_messages
@@ -2389,7 +2389,7 @@ async def send_thread_message(
         )
         
         print(f"DEBUG: User headers obtained: {user_headers is not None}")
-        
+
         result = await rocket_client.send_thread_message(room_id, thread_id, content, user_headers)
         
         print(f"DEBUG: send_thread_message result: {result}")
@@ -2911,6 +2911,7 @@ def get_group_endpoint(
 ):
     """Get a specific group by ID"""
     try:
+        print(f"DEBUG: Getting group ID {group_id} for user: {current_user.email}")
         group = get_group_by_id(db, group_id)
         if not group:
             raise HTTPException(status_code=404, detail="Group not found")
