@@ -1380,6 +1380,7 @@ class RocketChatClient:
                     
                     if response.status_code == 200:
                         result = response.json()
+                        print(f"This is the result: {result}")
                         if result.get('success'):
                             messages = result.get('messages', [])
                             if not messages:
@@ -1936,13 +1937,19 @@ class RocketChatClient:
                     
                     # Simple: get the other user (take the second username to avoid current user)
                     usernames = im.get('usernames', [])
+
+                    print(f"DEBUG: Processing DM with usernames: {usernames}")
+
                     other_user = None
-                    if len(usernames) >= 2:
-                        other_user = usernames[1]  # Take the second username
-                    elif len(usernames) == 1:
-                        other_user = usernames[0]  # Fallback if only one username
+                    for username in usernames:
+                        if username != current_username:
+                            other_user = username
+                            break
                     
+                    print(f"Other user is {other_user}")
+                    # If we couldn't find the other user (shouldn't happen), skip this DM
                     if not other_user:
+                        print(f"DEBUG: Could not find other user in DM with usernames: {usernames}")
                         continue
                     
                     room_data = {
@@ -1970,27 +1977,35 @@ class RocketChatClient:
         """Get the current user's username from Rocket.Chat"""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                # Use the users.info API to get current user info
-                response = await client.get(f"{self.base_url}/api/v1/users.info", headers=headers)
+                # Use the me API endpoint to get current authenticated user info
+                response = await client.get(f"{self.base_url}/api/v1/me", headers=headers)
+                
+                print(f"DEBUG: /me API response status: {response.status_code}")
+                print(f"DEBUG: /me API response: {response.text[:200]}")
                 
                 if response.status_code == 200:
                     result = response.json()
+                    print(f"DEBUG: /me API parsed response: {result}")
+                    # Check if it's a success response
                     if result.get('success'):
-                        user_info = result.get('user', {})
-                        username = user_info.get('username', '')
-                        print(f"DEBUG: Retrieved current user username: {username}")
+                        username = result.get('username', '')
+
+                    if username:
+                        print(f"Retrieved current user username: {username}")
                         return username
-                
-                print(f"DEBUG: Failed to get current user username, using fallback")
-                # Try to extract username from X-User-Id header as fallback
-                user_id = headers.get('X-User-Id', '')
-                if user_id:
-                    # This is a fallback - we'll use the user ID to identify self-DMs
-                    return f"user_{user_id}"
-                return ''
-                
+                    else:
+                        print(f"❌ Could not extract username from /me response")
+                        print(f"DEBUG: Full response: {result}")
+                        return ''
+                else:
+                    print(f"❌ Failed to get current user info - HTTP {response.status_code}")
+                    print(f"DEBUG: Error response: {response.text}")
+                    return ''
+                    
         except Exception as e:
             print(f"Exception getting current user username: {e}")
+            import traceback
+            traceback.print_exc()
             return ''
 
     async def get_groups_list(self, user_headers: Dict = None) -> List[Dict]:

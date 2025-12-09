@@ -673,7 +673,7 @@ async def delete_message(
         message_id = message_data.get("message_id")
         room_id = message_data.get("room_id")
         username = message_data.get("username")  # For DM deletion
-        
+
         print(f"This is the message data: {message_data}")
 
         if not message_id:
@@ -1331,6 +1331,32 @@ async def get_dm_messages(
         print(f"Error getting DM messages with {username}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to get DM messages: {str(e)}")
 
+@app.get("/api/rocket-chat/direct-messages-list")
+async def get_direct_messages_list(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Get list of all direct message conversations for the current user"""
+    try:
+        user_headers = await rocket_client.get_user_headers(
+            social_hub_user_email=current_user.email,
+            social_hub_user_name=current_user.full_name,
+            social_hub_user_id=str(current_user.id),
+            db_session=db
+        )
+        
+        # Get all DM conversations
+        dm_list = await rocket_client.get_direct_messages(
+            headers=rocket_client.headers,  # Use admin headers for listing
+            user_headers=user_headers
+        )
+        
+        return dm_list
+        
+    except Exception as e:
+        print(f"Error getting DM list: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+        
 @app.get("/api/rocket-chat/dm-list-complete")
 async def get_complete_dm_list(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     """Get all DM conversations including users from Social Hub database"""
