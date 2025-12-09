@@ -1113,9 +1113,21 @@ class RocketChatClient:
             print(f"Exception in unpin_message: {e}")
             return {"success": False, "error": str(e)}
 
-    async def delete_message(self, message_id: str, room_id: str, user_headers: Dict = None) -> Dict:
-        """Delete a message in a channel or group"""
+    async def delete_message(self, message_id: str, room_id: str = None, user_headers: Dict = None, username: str = None) -> Dict:
+        """Delete a message in a channel, group, or DM"""
         try:
+            # If username is provided, fetch the correct room_id for DM
+            print(f"this is the username: {username}")
+            if username and user_headers:
+                print(f"DEBUG: Fetching room_id for DM with {username}")
+                room_id = await self.create_or_get_dm_room(username, user_headers)
+                if not room_id:
+                    return {"success": False, "error": f"Could not get DM room with {username}"}
+                print(f"DEBUG: Got room_id for DM: {room_id}")
+            
+            if not room_id:
+                return {"success": False, "error": "room_id or username is required"}
+            
             print(f"DEBUG: Deleting message with ID: {message_id} in room: {room_id}")
             
             # Use user-specific headers if provided, otherwise use admin headers as fallback
@@ -1338,7 +1350,7 @@ class RocketChatClient:
             if not user_headers:
                 print("❌ No user headers provided for DM messages - cannot retrieve DMs without user authentication")
                 return []
-            
+            print(f"username is {username}")
             # Use user-specific headers
             headers = user_headers
             print(f"✅ Using user-specific headers for DM messages")
@@ -1351,7 +1363,7 @@ class RocketChatClient:
             all_messages = []
             offset = 0
             batch_size = 100  # Fetch in batches of 100
-            
+            print(f"room id is {room_id}")
             async with httpx.AsyncClient(timeout=60.0) as client:
                 while True:
                     response = await client.get(

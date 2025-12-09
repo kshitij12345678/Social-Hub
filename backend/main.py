@@ -668,17 +668,24 @@ async def delete_message(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Delete a message from a channel or group"""
+    """Delete a message from a channel, group, or DM"""
     try:
         message_id = message_data.get("message_id")
         room_id = message_data.get("room_id")
+        username = message_data.get("username")  # For DM deletion
         
+        print(f"This is the message data: {message_data}")
+
         if not message_id:
             raise HTTPException(status_code=400, detail="message_id is required")
-        if not room_id:
-            raise HTTPException(status_code=400, detail="room_id is required")
+        if not room_id and not username:
+            raise HTTPException(status_code=400, detail="Either room_id or username is required")
         
-        print(f"DEBUG: Deleting message {message_id} from room {room_id} for user: {current_user.email}")
+        print(f"DEBUG: Deleting message {message_id} for user: {current_user.email}")
+        if room_id:
+            print(f"DEBUG: From room {room_id}")
+        if username:
+            print(f"DEBUG: From DM with {username}")
         
         # Get user-specific headers for API calls
         user_headers = await rocket_client.get_user_headers(
@@ -689,13 +696,17 @@ async def delete_message(
         )
         
         # Delete message in Rocket.Chat
-        result = await rocket_client.delete_message(message_id, room_id, user_headers=user_headers)
+        result = await rocket_client.delete_message(
+            message_id, 
+            room_id=room_id, 
+            user_headers=user_headers,
+            username=username  # Pass username for DM deletion
+        )
         
         if result.get('success'):
             # Also remove from pinned messages if it was pinned
             pinned_message = db.query(PinnedMessage).filter(
-                PinnedMessage.message_id == message_id,
-                PinnedMessage.room_id == room_id
+                PinnedMessage.message_id == message_id
             ).first()
             
             if pinned_message:
@@ -1135,7 +1146,7 @@ async def send_message_to_general(
 @app.get("/api/rocket-chat/dm-messages")
 async def get_dm_messages(
     username: str,
-    limit: int = 1000,
+    limit: int = 50,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -1159,7 +1170,11 @@ async def get_dm_messages(
         for i, msg in enumerate(messages):
             if not isinstance(msg, dict):
                 continue
-                
+
+            if msg.get('t') == "message_pinned":
+                continue
+            
+            print(f"DEBUG: Processing DM message {i}: {msg}")
             user_data = msg.get("u", {})
             print(f"DEBUG: User data for message {i}: {user_data}")
             print(f"DEBUG: Username: {user_data.get('username')}, Name: {user_data.get('name')}")
@@ -1283,36 +1298,6 @@ async def get_dm_messages(
                         "size": att.get("image_size") or att.get("size") or 0,
                         "preview": f"data:image/jpeg;base64,{att.get('image_preview')}" if att.get('image_preview') else None
                     })
-            
-            # Also check for file field (single file uploads)
-            if msg.get("file"):
-                rocket_url = os.getenv('ROCKET_CHAT_URL', 'http://10.68.0.49:30082')
-                file_data = msg["file"]
-                file_url = file_data.get("url", "")
-                if file_url and not file_url.startswith("http"):
-                    file_url = f"{rocket_url}{file_url if file_url.startswith('/') else '/' + file_url}"
-                
-                # Add auth tokens to URL for secure access
-                user_headers = await rocket_client.get_user_headers(
-                    social_hub_user_email=current_user.email,
-                    social_hub_user_name=current_user.full_name,
-                    social_hub_user_id=str(current_user.id),
-                    db_session=db
-                )
-                rc_token = user_headers.get('X-Auth-Token', '')
-                rc_uid = user_headers.get('X-User-Id', '')
-                if rc_token and rc_uid and file_url:
-                    file_url = f"{file_url}?rc_uid={rc_uid}&rc_token={rc_token}"
-                
-                attachments.append({
-                    "id": file_data.get("_id", ""),
-                    "title": file_data.get("name", ""),
-                    "filename": file_data.get("name", ""),
-                    "url": file_url,
-                    "type": file_data.get("type", "application/octet-stream"),
-                    "size": file_data.get("size", 0),
-                    "preview": None
-                })
             
             # Determine if this message is from the current user
             current_user_username = current_user.email.split('@')[0]  # e.g., 'ankush15'
