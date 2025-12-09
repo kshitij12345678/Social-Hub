@@ -1838,43 +1838,59 @@ class RocketChatClient:
             return {'channels': [], 'groups': [], 'direct_messages': []}
 
     async def get_channels_and_groups(self, headers: Dict) -> tuple:
-        """Get channels and groups using rooms.get API"""
+        """Get channels and groups using channels.list and groups.list APIs"""
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                response = await client.get(f"{self.base_url}/api/v1/rooms.get", headers=headers)
+                # Fetch public channels
+                channels_response = await client.get(f"{self.base_url}/api/v1/channels.list", headers=headers)
                 
-                if response.status_code != 200:
-                    print(f"❌ Failed to get rooms list: HTTP {response.status_code}")
-                    return [], []
+                # Fetch private groups
+                groups_response = await client.get(f"{self.base_url}/api/v1/groups.list", headers=headers)
                 
-                result = response.json()
-                if not result.get('success'):
-                    print(f"❌ API error: {result.get('error', 'Unknown error')}")
-                    return [], []
-                
-                rooms = result.get('update', [])
                 channels = []
                 groups = []
                 
-                for room in rooms:
-                    room_data = {
-                        'id': room.get('_id'),
-                        'name': room.get('name'),
-                        'display_name': room.get('fname', room.get('name')),
-                        'unread_count': room.get('unread', 0),
-                        'type': room.get('t'),
-                        'open': room.get('open', True)
-                    }
-                    
-                    if room.get('t') == 'c':  # Channel
-                        room_data['type'] = 'channel'
-                        channels.append(room_data)
-                    elif room.get('t') == 'p':  # Private group
-                        room_data['type'] = 'private_group'
-                        groups.append(room_data)
-                    # Skip DMs here - we'll handle them separately
+                # Process channels
+                if channels_response.status_code == 200:
+                    channels_result = channels_response.json()
+                    if channels_result.get('success'):
+                        for room in channels_result.get('channels', []):
+                            room_data = {
+                                'id': room.get('_id'),
+                                'name': room.get('name'),
+                                'display_name': room.get('fname', room.get('name')),
+                                'unread_count': room.get('unread', 0),
+                                'type': 'channel',
+                                'open': room.get('open', True)
+                            }
+                            channels.append(room_data)
+                        print(f"DEBUG: Found {len(channels)} public channels via channels.list")
+                    else:
+                        print(f"❌ Channels API error: {channels_result.get('error', 'Unknown error')}")
+                else:
+                    print(f"❌ Failed to get channels: HTTP {channels_response.status_code}")
                 
-                print(f"DEBUG: Found {len(channels)} channels and {len(groups)} groups via rooms.get")
+                # Process groups
+                if groups_response.status_code == 200:
+                    groups_result = groups_response.json()
+                    if groups_result.get('success'):
+                        for room in groups_result.get('groups', []):
+                            room_data = {
+                                'id': room.get('_id'),
+                                'name': room.get('name'),
+                                'display_name': room.get('fname', room.get('name')),
+                                'unread_count': room.get('unread', 0),
+                                'type': 'private_group',
+                                'open': room.get('open', True)
+                            }
+                            groups.append(room_data)
+                        print(f"DEBUG: Found {len(groups)} private groups via groups.list")
+                    else:
+                        print(f"❌ Groups API error: {groups_result.get('error', 'Unknown error')}")
+                else:
+                    print(f"❌ Failed to get groups: HTTP {groups_response.status_code}")
+                
+                print(f"DEBUG: Total {len(channels)} channels and {len(groups)} groups")
                 return channels, groups
                 
         except Exception as e:
