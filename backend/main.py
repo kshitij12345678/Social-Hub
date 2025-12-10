@@ -2162,6 +2162,25 @@ async def get_channel_messages_by_id(
         # Reverse to show oldest first (like chat history)
         formatted_messages.reverse()
 
+        # For private groups/channels where thread_messages is empty, organize thread messages by thread_ts
+        # This is needed because private groups return thread messages as separate messages with thread_ts field
+        # rather than nested in the parent message's thread_messages array (unlike channels and DMs)
+        message_dict = {msg['id']: msg for msg in formatted_messages}
+        
+        for msg in formatted_messages:
+            # Only organize if thread_messages array is empty (not already populated)
+            if not msg.get('thread_messages'):
+                msg['thread_messages'] = []
+                
+                # Find all messages that are part of this message's thread
+                if msg.get('thread_count', 0) > 0:
+                    for other_msg in formatted_messages:
+                        # If another message has this message's ID as its thread_ts, it's a thread reply
+                        if other_msg.get('thread_ts') == msg['id']:
+                            msg['thread_messages'].append(other_msg)
+                    
+                    print(f"DEBUG: Organized {len(msg['thread_messages'])} thread messages for message {msg['id']}")
+
         for i in formatted_messages:
             print(f"DEBUG: Formatted message: {i}")
         
