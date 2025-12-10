@@ -5,241 +5,6 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { chatService, type ChatMessage, type ChatConversation } from '@/services/chat';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '@/contexts/AuthContext';
-
-// Helper function to format message timestamp
-const formatMessageTime = (timestamp: string) => {
-  const messageDate = new Date(timestamp);
-  const now = new Date();
-  const isToday = messageDate.toDateString() === now.toDateString();
-  const isYesterday = messageDate.toDateString() === new Date(now.getTime() - 24 * 60 * 60 * 1000).toDateString();
-  
-  if (isToday) {
-    return messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-  } else if (isYesterday) {
-    return `Yesterday ${messageDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
-  } else {
-    return messageDate.toLocaleDateString([], { 
-      month: 'short', 
-      day: 'numeric',
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
-  }
-};
-
-// Message component with reactions and threads
-const MessageComponent: React.FC<{ 
-  message: ChatMessage; 
-  isThreadMessage?: boolean;
-  onReactionToggle: (messageId: string, emoji: string) => void;
-  onSendThreadMessage: (parentMessageId: string, text: string) => void;
-  onPinMessage: (messageId: string, messageText: string) => void;
-  reactionEmojis: Array<{ emoji: string; icon: any; label: string }>;
-  showReactionPicker: string | null;
-  setShowReactionPicker: (messageId: string | null) => void;
-  isPinned?: boolean;
-}> = ({ 
-  message, 
-  isThreadMessage = false, 
-  onReactionToggle, 
-  onSendThreadMessage,
-  onPinMessage,
-  reactionEmojis,
-  showReactionPicker,
-  setShowReactionPicker,
-  isPinned = false
-}) => {
-  const [showThreadInput, setShowThreadInput] = useState(false);
-  const [threadMessage, setThreadMessage] = useState('');
-  const [sendingThread, setSendingThread] = useState(false);
-  const { user } = useAuth();
-  
-  const isSystemMessage = message.type === 'system';
-  
-  // Simple: Use the isOwn flag from backend (it's already calculated correctly)
-  const isOwnMessage = message.isOwn === true;
-  
-  // Debug logging for message ownership
-  console.log('🔍 ChatWindow Message ownership check:', {
-    messageId: message.id,
-    messageUser: message.user?.username,
-    messageUserName: message.user?.name,
-    messageSender: message.sender,
-    currentUserEmail: user?.email,
-    isOwnFromBackend: message.isOwn,
-    isOwnMessage,
-    messageData: message
-  });
-  
-  const hasThreadMessages = message.thread_messages && message.thread_messages.length > 0;
-  const hasReactions = message.reactions && Object.keys(message.reactions).length > 0;
-
-  const handleSendThreadMessageLocal = async () => {
-    if (!threadMessage.trim()) return;
-    
-    setSendingThread(true);
-    try {
-      await onSendThreadMessage(message.id, threadMessage);
-      setThreadMessage('');
-      setShowThreadInput(false);
-    } finally {
-      setSendingThread(false);
-    }
-  };
-
-  return (
-    <div className={`${isThreadMessage ? 'ml-6 border-l-2 border-muted pl-4' : ''}`}>
-      <div
-        className={`flex ${isOwnMessage && !isSystemMessage ? 'justify-end' : 'justify-start'}`}
-      >
-        <div
-          className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
-            isSystemMessage
-              ? 'bg-muted text-center text-sm italic mx-auto'
-              : isOwnMessage
-              ? 'bg-primary text-primary-foreground'
-              : 'bg-muted'
-          }`}
-        >
-          {!isSystemMessage && !isOwnMessage && (
-            <div className="text-xs text-muted-foreground mb-1">
-              {message.user?.username || message.user?.name || message.sender}
-            </div>
-          )}
-          <p className="text-sm">{message.text || message.content}</p>
-          <div className="text-xs opacity-70 mt-1">
-            {formatMessageTime(message.timestamp)}
-          </div>
-          
-          {/* Reactions */}
-          {hasReactions && (
-            <div className="flex flex-wrap gap-1 mt-2">
-              {Object.entries(message.reactions).map(([emoji, usernames]) => (
-                <button
-                  key={emoji}
-                  onClick={() => onReactionToggle(message.id, emoji)}
-                  className="flex items-center space-x-1 px-2 py-1 rounded-full bg-secondary/50 hover:bg-secondary text-xs"
-                >
-                  <span>{emoji}</span>
-                  <span>{usernames.length}</span>
-                </button>
-              ))}
-            </div>
-          )}
-          
-          {/* Action buttons */}
-          {!isSystemMessage && (
-            <div className="flex items-center space-x-2 mt-2">
-              <button
-                onClick={() => setShowReactionPicker(showReactionPicker === message.id ? null : message.id)}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center space-x-1"
-              >
-                <Smile className="h-3 w-3" />
-                <span>React</span>
-              </button>
-              
-              <button
-                onClick={() => setShowThreadInput(!showThreadInput)}
-                className="text-xs text-muted-foreground hover:text-foreground flex items-center space-x-1"
-              >
-                <Reply className="h-3 w-3" />
-                <span>Reply</span>
-                {message.thread_count && message.thread_count > 0 && (
-                  <span>({message.thread_count})</span>
-                )}
-              </button>
-              
-              <button
-                onClick={() => onPinMessage(message.id, message.text || message.content || '')}
-                className={`text-xs flex items-center space-x-1 ${
-                  isPinned 
-                    ? 'text-primary hover:text-primary/80' 
-                    : 'text-muted-foreground hover:text-foreground'
-                }`}
-                title={isPinned ? 'Pinned message' : 'Pin message'}
-              >
-                <Pin className={`h-3 w-3 ${isPinned ? 'fill-current' : ''}`} />
-                <span>{isPinned ? 'Pinned' : 'Pin'}</span>
-              </button>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Reaction picker */}
-      {showReactionPicker === message.id && (
-        <div className="flex space-x-1 mt-2 ml-4">
-          {reactionEmojis.map(({ emoji, icon: Icon, label }) => (
-            <button
-              key={emoji}
-              onClick={() => {
-                onReactionToggle(message.id, emoji);
-                setShowReactionPicker(null);
-              }}
-              className="p-1 rounded-full hover:bg-secondary transition-colors"
-              title={label}
-            >
-              <span className="text-lg">{emoji}</span>
-            </button>
-          ))}
-        </div>
-      )}
-      
-      {/* Thread input */}
-      {showThreadInput && (
-        <div className="mt-2 ml-4">
-          <div className="flex space-x-2">
-            <Input
-              placeholder="Reply to this message..."
-              value={threadMessage}
-              onChange={(e) => setThreadMessage(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' && !e.shiftKey) {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  handleSendThreadMessageLocal();
-                }
-              }}
-              className="flex-1"
-              disabled={sendingThread}
-            />
-            <Button
-              onClick={(e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                handleSendThreadMessageLocal();
-              }}
-              disabled={!threadMessage.trim() || sendingThread}
-              size="sm"
-            >
-              <Send className="h-3 w-3" />
-            </Button>
-          </div>
-        </div>
-      )}
-      
-      {/* Thread messages */}
-      {hasThreadMessages && (
-        <div className="mt-2 space-y-2">
-          {message.thread_messages!.map((threadMsg) => (
-            <MessageComponent
-              key={threadMsg.id}
-              message={threadMsg}
-              isThreadMessage={true}
-              onReactionToggle={onReactionToggle}
-              onSendThreadMessage={onSendThreadMessage}
-              onPinMessage={() => {}}
-              reactionEmojis={reactionEmojis}
-              showReactionPicker={showReactionPicker}
-              setShowReactionPicker={setShowReactionPicker}
-            />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-};
 
 interface ChatWindowProps {
   selectedChannel: ChatConversation;
@@ -251,7 +16,6 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedChannel, isAuthenticate
   const [loading, setLoading] = useState(false);
   const [newMessage, setNewMessage] = useState('');
   const [sending, setSending] = useState(false);
-  const [showReactionPicker, setShowReactionPicker] = useState<string | null>(null);
   const { toast } = useToast();
 
   // Common reaction emojis
@@ -469,6 +233,9 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedChannel, isAuthenticate
     try {
       // Use the same channel identifier logic as main message sending
       let channelIdentifier;
+      let username: string | undefined = undefined;
+      let conversationType: string | undefined = selectedChannel.type;
+      
       if (selectedChannel.type === 'private_group') {
         // For private groups, use rocket_chat_group_id if available, otherwise normalize the name
         if ((selectedChannel as any).rocket_chat_group_id) {
@@ -490,11 +257,19 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedChannel, isAuthenticate
           normalizedName: channelIdentifier,
           finalIdentifier: channelIdentifier 
         });
+      } else if (selectedChannel.type === 'direct_message') {
+        // For direct messages, use other_user as username
+        username = selectedChannel.other_user || '';
+        channelIdentifier = selectedChannel.name || selectedChannel.id;
+        console.log('🔍 Thread message - Direct message identifier:', { 
+          username,
+          conversationType: 'direct_message'
+        });
       } else {
         channelIdentifier = selectedChannel.name || selectedChannel.id;
       }
       
-      await chatService.sendThreadMessage(channelIdentifier, parentMessageId, text);
+      await chatService.sendThreadMessage(channelIdentifier, parentMessageId, text, username, conversationType);
       
       toast({
         title: "Thread message sent!",

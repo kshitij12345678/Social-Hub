@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus, Users, Search, Trash2, UserPlus, ArrowLeft, MessageCircle, Edit, UserMinus } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import ResponsiveLayout from '@/components/layout/responsive-layout';
 
 // Set the page title
 document.title = 'Private Group - Social Hub';
@@ -51,7 +52,9 @@ const Groups: React.FC = () => {
   const [loadingMembers, setLoadingMembers] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<User[]>([]);
-  const [newGroup, setNewGroup] = useState({ name: '', description: '' });
+  const [newGroup, setNewGroup] = useState({ name: '', description: '', member_emails: [] as string[] });
+  const [createDialogSearchQuery, setCreateDialogSearchQuery] = useState('');
+  const [createDialogSearchResults, setCreateDialogSearchResults] = useState<User[]>([]);
   const [editGroup, setEditGroup] = useState({ name: '', description: '' });
   const { toast } = useToast();
   const navigate = useNavigate();
@@ -102,17 +105,23 @@ const Groups: React.FC = () => {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(newGroup),
+        body: JSON.stringify({
+          name: newGroup.name,
+          description: newGroup.description,
+          member_emails: newGroup.member_emails.length > 0 ? newGroup.member_emails : undefined
+        }),
       });
 
       if (response.ok) {
         const data = await response.json();
         setGroups([data, ...groups]);
-        setNewGroup({ name: '', description: '' });
+        setNewGroup({ name: '', description: '', member_emails: [] });
+        setCreateDialogSearchQuery('');
+        setCreateDialogSearchResults([]);
         setShowCreateDialog(false);
         toast({
           title: "Success",
-          description: "Group created successfully",
+          description: `Group created successfully with ${data.member_count} members`,
         });
         
         // Navigate to Messages page with the newly created group
@@ -166,6 +175,55 @@ const Groups: React.FC = () => {
     } catch (error) {
       console.error('Error searching users:', error);
     }
+  };
+
+  const searchUsersForCreateDialog = async (query: string) => {
+    if (query.length < 2) {
+      setCreateDialogSearchResults([]);
+      return;
+    }
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/users/search?query=${encodeURIComponent(query)}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCreateDialogSearchResults(data);
+      }
+    } catch (error) {
+      console.error('Error searching users:', error);
+    }
+  };
+
+  const addMemberToCreateGroup = (user: User) => {
+    if (!newGroup.member_emails.includes(user.email)) {
+      setNewGroup({
+        ...newGroup,
+        member_emails: [...newGroup.member_emails, user.email]
+      });
+      toast({
+        title: "Success",
+        description: `${user.full_name} added to group`,
+      });
+    } else {
+      toast({
+        title: "Info",
+        description: `${user.full_name} is already added to group`,
+      });
+    }
+  };
+
+  const removeMemberFromCreateGroup = (email: string) => {
+    setNewGroup({
+      ...newGroup,
+      member_emails: newGroup.member_emails.filter(e => e !== email)
+    });
   };
 
   const addMemberToGroup = async (userEmail: string) => {
@@ -374,29 +432,19 @@ const Groups: React.FC = () => {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <ResponsiveLayout>
         <div className="flex items-center justify-center h-64">
           <div className="text-lg">Loading groups...</div>
         </div>
-      </div>
+      </ResponsiveLayout>
     );
   }
 
   return (
-    <div className="container mx-auto p-6">
-      <div className="flex justify-between items-center mb-6">
-        <div className="flex items-center space-x-4">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => navigate(-1)}
-            className="flex items-center space-x-2"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            <span>Back</span>
-          </Button>
+    <ResponsiveLayout>
+      <div className="w-full">
+        <div className="flex justify-between items-center mb-6">
           <h1 className="text-3xl font-bold">Private Groups</h1>
-        </div>
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
           <DialogTrigger asChild>
             <Button>
@@ -404,7 +452,7 @@ const Groups: React.FC = () => {
               Create Group
             </Button>
           </DialogTrigger>
-          <DialogContent>
+          <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create Private Group</DialogTitle>
               <DialogDescription>
@@ -430,9 +478,86 @@ const Groups: React.FC = () => {
                   placeholder="Enter group description"
                 />
               </div>
+
+              <div className="border-t pt-4">
+                <Label htmlFor="search-create-users">Add Members (Optional)</Label>
+                <div className="relative mt-2">
+                  <Search className="absolute left-3 top-3 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    id="search-create-users"
+                    placeholder="Search by name or email..."
+                    value={createDialogSearchQuery}
+                    onChange={(e) => {
+                      setCreateDialogSearchQuery(e.target.value);
+                      searchUsersForCreateDialog(e.target.value);
+                    }}
+                    className="pl-10"
+                  />
+                </div>
+
+                {/* Selected Members Display */}
+                {newGroup.member_emails.length > 0 && (
+                  <div className="mt-3 space-y-2">
+                    <p className="text-sm font-medium">Selected Members ({newGroup.member_emails.length})</p>
+                    <div className="flex flex-wrap gap-2">
+                      {newGroup.member_emails.map((email) => (
+                        <Badge key={email} variant="secondary" className="flex items-center gap-1">
+                          {email.split('@')[0]}
+                          <button
+                            onClick={() => removeMemberFromCreateGroup(email)}
+                            className="ml-1 hover:text-destructive"
+                          >
+                            ✕
+                          </button>
+                        </Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Search Results */}
+                {createDialogSearchResults.length > 0 && (
+                  <div className="space-y-2 max-h-48 overflow-y-auto mt-3">
+                    {createDialogSearchResults.map((user) => (
+                      <div
+                        key={user.id}
+                        className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                      >
+                        <div className="flex items-center space-x-3">
+                          <Avatar className="w-8 h-8">
+                            <AvatarImage src={user.profile_picture_url} />
+                            <AvatarFallback>
+                              {user.full_name.charAt(0).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <p className="font-medium">{user.full_name}</p>
+                            <p className="text-sm text-muted-foreground">{user.email}</p>
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => addMemberToCreateGroup(user)}
+                          disabled={newGroup.member_emails.includes(user.email)}
+                        >
+                          {newGroup.member_emails.includes(user.email) ? 'Added' : 'Add'}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  setShowCreateDialog(false);
+                  setNewGroup({ name: '', description: '', member_emails: [] });
+                  setCreateDialogSearchQuery('');
+                  setCreateDialogSearchResults([]);
+                }}
+              >
                 Cancel
               </Button>
               <Button onClick={createGroup} disabled={!newGroup.name.trim()}>
@@ -727,7 +852,8 @@ const Groups: React.FC = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </ResponsiveLayout>
   );
 };
 

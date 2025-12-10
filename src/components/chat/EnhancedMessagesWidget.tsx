@@ -765,6 +765,19 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
         [parentMessageId]: [...(prev[parentMessageId] || []), newThreadMessage]
       }));
       
+      // Also update the parent message's thread_count if it exists
+      setMessages(prev => prev.map(msg => {
+        if (msg.id === parentMessageId) {
+          console.log('✅ Updating parent message with new thread message');
+          return {
+            ...msg,
+            thread_count: (msg.thread_count || 0) + 1,
+            thread_messages: msg.thread_messages ? [...msg.thread_messages, newThreadMessage] : [newThreadMessage]
+          };
+        }
+        return msg;
+      }));
+      
       console.log('✅ Thread message added to local state');
       
       // Note: Using optimistic updates instead of server reload to avoid race conditions
@@ -1109,6 +1122,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                       });
                       
                       const isSelected = selectedConversation?.id === conversation.id;
+                      console.log("Check the conversation type:", conversation.type);
                       const isDM = conversation.type === 'direct_message';
                       const isGroup = conversation.type === 'private_group';
                       const isChannel = conversation.type === 'channel';
@@ -1438,7 +1452,10 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                         // For images, show full size
                                         if (isImage || isImageFile) {
                                           // Use base64 preview for instant display (it's full quality)
-                                          const imageUrl = attachment.preview || attachment.url;
+
+                                          const imageUrl = attachment.url;
+                                          
+                                          console.log("This is the image URL being used:", imageUrl);
                                           
                                           console.log('🎨 Rendering image attachment:', {
                                             filename: attachment.filename,
@@ -1761,20 +1778,35 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                               }
                                               
                                               try {
-                                                // Use rocket_chat_group_id if available (for groups), otherwise use conversation id
-                                                let roomId = selectedConversation?.id || '';
+                                                // Prepare delete request body
+                                                const deleteBody: any = {
+                                                  message_id: message.id,
+                                                };
                                                 
-                                                // For private groups, prefer rocket_chat_group_id from the conversation
-                                                if (selectedConversation?.type === 'private_group') {
-                                                  const group = groups.find(g => g.id === selectedConversation.id || g.name === selectedConversation.name);
-                                                  if (group && (group as any).rocket_chat_group_id) {
-                                                    roomId = (group as any).rocket_chat_group_id;
-                                                  } else if ((selectedConversation as any).rocket_chat_group_id) {
-                                                    roomId = (selectedConversation as any).rocket_chat_group_id;
+                                                // For DMs, add username instead of room_id
+                                                if (selectedConversation?.type === 'direct_message') {
+                                                  const dmUsername = selectedConversation?.name || selectedConversation?.other_user || '';
+                                                  deleteBody.username = dmUsername;
+                                                  console.log('🗑️ Deleting DM message from conversation with:', dmUsername);
+                                                } else {
+                                                  // For channels/groups, use room_id
+                                                  let roomId = selectedConversation?.id || '';
+                                                  
+                                                  // For private groups, prefer rocket_chat_group_id
+                                                  if (selectedConversation?.type === 'private_group') {
+                                                    const group = groups.find(g => g.id === selectedConversation.id || g.name === selectedConversation.name);
+                                                    if (group && (group as any).rocket_chat_group_id) {
+                                                      roomId = (group as any).rocket_chat_group_id;
+                                                    } else if ((selectedConversation as any).rocket_chat_group_id) {
+                                                      roomId = (selectedConversation as any).rocket_chat_group_id;
+                                                    }
                                                   }
+                                                  
+                                                  deleteBody.room_id = roomId;
+                                                  console.log('🗑️ Deleting channel/group message from room:', roomId);
                                                 }
                                                 
-                                                console.log('🗑️ Deleting message:', { messageId: message.id, roomId, conversation: selectedConversation });
+                                                console.log('📤 Delete request body:', deleteBody);
                                                 
                                                 const response = await fetch('http://localhost:8000/chat/delete-message', {
                                                   method: 'DELETE',
@@ -1782,10 +1814,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                     'Content-Type': 'application/json',
                                                     'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                                                   },
-                                                  body: JSON.stringify({
-                                                    message_id: message.id,
-                                                    room_id: roomId
-                                                  })
+                                                  body: JSON.stringify(deleteBody)
                                                 });
                                                 
                                                 const data = await response.json();
@@ -1860,17 +1889,44 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                 </div>
                               </div>
                               
-                              {/* Thread messages */}
-                              {openThreads.has(message.id) && threadMessages[message.id] && (
+                              {/* Thread messages - Display only when thread is opened */}
+                              {openThreads.has(message.id) ? (
                                 <div className="mt-2 space-y-2">
-                                  {(Array.isArray(threadMessages[message.id]) ? threadMessages[message.id] : []).map((threadMsg) => {
+                                  {/* Show loading state while fetching */}
+                                  {loadingThread === message.id && !threadMessages[message.id] && (!message.thread_messages || message.thread_messages.length === 0) && (
+                                    <div className="ml-6 pl-4 py-2 text-sm text-muted-foreground">
+                                      Loading thread...
+                                    </div>
+                                  )}
+                                  
+                                  {/* Show thread messages - merge fetched data with initial backend response */}
+                                  {(() => {
+                                    // Combine messages from both sources, avoiding duplicates
+                                    const fetchedMsgs = threadMessages[message.id] || [];
+                                    const initialMsgs = message.thread_messages || [];
+                                    
+                                    // Merge arrays, removing duplicates based on message ID
+                                    const seenIds = new Set<string>();
+                                    const allMsgs = [...fetchedMsgs, ...initialMsgs].filter(msg => {
+                                      if (seenIds.has(msg.id)) return false;
+                                      seenIds.add(msg.id);
+                                      return true;
+                                    });
+                                    
+                                    // Sort by timestamp (oldest first)
+                                    allMsgs.sort((a, b) => {
+                                      const timeA = new Date(a.timestamp).getTime();
+                                      const timeB = new Date(b.timestamp).getTime();
+                                      return timeA - timeB;
+                                    });
+                                    
+                                    return allMsgs.map((threadMsg) => {
                                     // Determine if this thread message is from the current user
                                     const currentUserUsername = user?.email?.split('@')[0];
-                                    const currentUserName = user?.name?.toLowerCase().replace(/\s+/g, '');
-                                    const currentUserFullName = user?.name;
+                                    const threadMsgUsername = threadMsg.user?.username || '';
                                     
-                                    // Simple: Use the isOwn flag from backend
-                                    const isOwnThreadMessage = threadMsg.isOwn === true;
+                                    // Check isOwn flag first, then fallback to username comparison (for DMs)
+                                    const isOwnThreadMessage = threadMsg.isOwn === true || threadMsgUsername === currentUserUsername;
                                     
                                     return (
                                       <div key={threadMsg.id} className="ml-6 border-l-2 border-muted pl-4">
@@ -1893,8 +1949,9 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                         </div>
                                       </div>
                                     );
-                                  })}
-                                  
+                                    });
+                                  })()}
+
                                   {/* Thread reply input */}
                                   <div className="ml-6 pl-4">
                                     <div className="flex items-center space-x-2">
@@ -1925,7 +1982,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                     </div>
                                   </div>
                                 </div>
-                              )}
+                              ) : null}
                             </div>
                           );
                         });
