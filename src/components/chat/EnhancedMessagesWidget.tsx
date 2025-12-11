@@ -714,17 +714,67 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
 
   const handleReactionToggle = async (messageId: string, emoji: string) => {
     try {
-      // Find the message to get current reactions
-      const message = messages.find(msg => msg.id === messageId);
+      console.log('Toggling reaction for message:', messageId, 'emoji:', emoji);
+      
+      const currentUser = user?.email?.split('@')[0] || user?.name || 'You';
+      console.log('Current user:', currentUser);
+      
+      // Find the message - could be top-level or thread message
+      let message = messages.find(msg => msg.id === messageId);
+      let isThreadMessage = false;
+      let parentMessageId = '';
+      
+      // If not found in top-level, search in thread messages
+      if (!message) {
+        for (const msg of messages) {
+          const threadMsg = msg.thread_messages?.find(tm => tm.id === messageId);
+          if (threadMsg) {
+            message = threadMsg;
+            isThreadMessage = true;
+            parentMessageId = msg.id;
+            break;
+          }
+        }
+      }
+      
+      console.log('Found message:', message, 'isThreadMessage:', isThreadMessage);
+      
       const currentReactions = message?.reactions || {};
       
-      await rocketChatService.toggleReaction(messageId, emoji, currentReactions);
-      // Update reactions locally instead of reloading all messages
+      // OPTIMISTIC UPDATE: Update UI immediately
       setMessages(prev => prev.map(msg => {
-        if (msg.id === messageId) {
-          const currentReactions = msg.reactions || {};
-          const currentUsers = currentReactions[emoji] || [];
-          const currentUser = user?.email?.split('@')[0] || user?.name || 'You';
+        if (isThreadMessage && msg.id === parentMessageId) {
+          // Update thread message reactions
+          return {
+            ...msg,
+            thread_messages: msg.thread_messages?.map(threadMsg => {
+              if (threadMsg.id === messageId) {
+                const threadReactions = threadMsg.reactions || {};
+                const currentUsers = threadReactions[emoji] || [];
+                
+                // Toggle reaction
+                const newUsers = currentUsers.includes(currentUser) 
+                  ? currentUsers.filter(u => u !== currentUser)
+                  : [...currentUsers, currentUser];
+                
+                // Remove emoji if no users left
+                const newReactions = { ...threadReactions };
+                if (newUsers.length === 0) {
+                  delete newReactions[emoji];
+                } else {
+                  newReactions[emoji] = newUsers;
+                }
+                
+                console.log('Updated thread reaction optimistically:', newReactions);
+                return { ...threadMsg, reactions: newReactions };
+              }
+              return threadMsg;
+            })
+          };
+        } else if (msg.id === messageId) {
+          // Update top-level message reactions
+          const msgReactions = msg.reactions || {};
+          const currentUsers = msgReactions[emoji] || [];
           
           // Toggle reaction
           const newUsers = currentUsers.includes(currentUser) 
@@ -732,19 +782,55 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
             : [...currentUsers, currentUser];
           
           // Remove emoji if no users left
-          const newReactions = { ...currentReactions };
+          const newReactions = { ...msgReactions };
           if (newUsers.length === 0) {
             delete newReactions[emoji];
           } else {
             newReactions[emoji] = newUsers;
           }
           
+          console.log('Updated top-level reaction optimistically:', newReactions);
           return { ...msg, reactions: newReactions };
         }
         return msg;
       }));
+      
+      // ALSO UPDATE threadMessages if this is a thread message that's been fetched
+      if (isThreadMessage && parentMessageId && threadMessages[parentMessageId]) {
+        setThreadMessages(prev => ({
+          ...prev,
+          [parentMessageId]: prev[parentMessageId].map(msg => {
+            if (msg.id === messageId) {
+              const msgReactions = msg.reactions || {};
+              const currentUsers = msgReactions[emoji] || [];
+              
+              // Toggle reaction
+              const newUsers = currentUsers.includes(currentUser) 
+                ? currentUsers.filter(u => u !== currentUser)
+                : [...currentUsers, currentUser];
+              
+              // Remove emoji if no users left
+              const newReactions = { ...msgReactions };
+              if (newUsers.length === 0) {
+                delete newReactions[emoji];
+              } else {
+                newReactions[emoji] = newUsers;
+              }
+              
+              console.log('Updated threadMessages state reaction optimistically:', newReactions);
+              return { ...msg, reactions: newReactions };
+            }
+            return msg;
+          })
+        }));
+      }
+      
+      // THEN call the API
+      await rocketChatService.toggleReaction(messageId, emoji, currentReactions);
     } catch (error) {
       console.error('Failed to toggle reaction:', error);
+      // Optionally: revert the optimistic update on error
+      // You could reload messages here if needed
     }
   };
 
@@ -1645,7 +1731,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                   
                                   <div className="text-xs opacity-70 mt-1 flex items-center gap-1">
                                     {formatMessageTime(message.timestamp)}
-                                    {message.edited_at && <span className="text-gray-500 italic">edited</span>}
+                                    {message.editedAt && <span className="text-gray-500 italic">edited</span>}
                                   </div>
                                   
                                   {/* Reactions Display */}
@@ -2064,7 +2150,15 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                     const fetchedMsgs = threadMessages[message.id] || [];
                                     const initialMsgs = message.thread_messages || [];
                                     
-                                    // Merge arrays, removing duplicates based on message ID
+                                    console.log('🧵 Thread message rendering:', {
+                                      messageId: message.id,
+                                      fetchedCount: fetchedMsgs.length,
+                                      initialCount: initialMsgs.length,
+                                      fetchedMsgs: fetchedMsgs,
+                                      initialMsgs: initialMsgs,
+                                      messageHasThreadMessages: !!message.thread_messages,
+                                      threadMessagesLength: message.thread_messages?.length
+                                    });
                                     const seenIds = new Set<string>();
                                     const allMsgs = [...fetchedMsgs, ...initialMsgs].filter(msg => {
                                       if (seenIds.has(msg.id)) return false;
@@ -2083,13 +2177,15 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                     // Check isOwn flag from backend (it's already calculated correctly)
                                     const isOwnThreadMessage = threadMsg.isOwn === true;
                                     
+                                    console.log(`🔍 Thread message ${threadMsg.id}: isOwn=${threadMsg.isOwn}, isOwnThreadMessage=${isOwnThreadMessage}`, threadMsg);
+                                    
                                     return (
-                                      <div key={threadMsg.id} className="ml-6 border-l-2 border-muted pl-4 group">
-                                        <div className={`flex ${isOwnThreadMessage ? 'justify-end' : 'justify-start'} gap-2`}>
+                                      <div key={threadMsg.id} className="ml-6 border-l-2 border-muted pl-4 group flex gap-2 items-center">
+                                        <div className={`flex-1 ${isOwnThreadMessage ? 'flex justify-end' : 'flex justify-start'}`}>
                                           <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                                             isOwnThreadMessage
-                                              ? 'bg-primary text-primary-foreground ml-auto'
-                                              : 'bg-muted/50 mr-auto'
+                                              ? 'bg-primary text-primary-foreground'
+                                              : 'bg-muted/50'
                                           }`}>
                                             {!isOwnThreadMessage && (
                                               <div className="text-xs text-muted-foreground mb-1">
@@ -2111,14 +2207,64 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                             
                                             <div className="text-xs opacity-70 mt-1 flex items-center gap-1">
                                               {formatMessageTime(threadMsg.timestamp)}
-                                              {threadMsg.edited_at && <span className="text-gray-500 italic">edited</span>}
+                                              {threadMsg.editedAt && <span className="text-gray-500 italic">edited</span>}
+                                            </div>
+                                            
+                                            {/* Reactions Display for thread messages */}
+                                            {threadMsg.reactions && Object.keys(threadMsg.reactions).length > 0 && (
+                                              <div className="flex flex-wrap gap-1 mt-2">
+                                                {Object.entries(threadMsg.reactions).map(([emoji, usernames]) => {
+                                                  if (!usernames || usernames.length === 0) return null;
+                                                  return (
+                                                    <button
+                                                      key={emoji}
+                                                      className="flex items-center space-x-1 px-2 py-1 rounded-full bg-secondary/50 hover:bg-secondary text-xs"
+                                                      onClick={() => handleReactionToggle(threadMsg.id, emoji)}
+                                                    >
+                                                      <span>{emoji}</span>
+                                                      <span>{usernames.length}</span>
+                                                    </button>
+                                                  );
+                                                })}
+                                              </div>
+                                            )}
+                                            
+                                            {/* Add Reaction Button for thread messages */}
+                                            <div className="flex items-center space-x-2 mt-2">
+                                              <div className="relative">
+                                                <button
+                                                  onClick={() => setShowReactionPicker(showReactionPicker === threadMsg.id ? null : threadMsg.id)}
+                                                  className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                                                  title="Add reactions"
+                                                >
+                                                  <Smile className="h-4 w-4" />
+                                                </button>
+                                                
+                                                {showReactionPicker === threadMsg.id && (
+                                                  <div className="absolute bottom-full mb-2 left-0 bg-white border rounded-lg shadow-lg p-2 z-50" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                                                    {['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '👏', '🤔', '😍'].map((emoji) => (
+                                                      <button
+                                                        key={emoji}
+                                                        onClick={async () => {
+                                                          await handleReactionToggle(threadMsg.id, emoji);
+                                                          setShowReactionPicker(null);
+                                                        }}
+                                                        className="text-xl hover:scale-125 transition-transform"
+                                                      >
+                                                        {emoji}
+                                                      </button>
+                                                    ))}
+                                                  </div>
+                                                )}
+                                              </div>
                                             </div>
                                           </div>
-                                          
-                                          {/* Thread message action buttons - show on hover */}
-                                          {isOwnThreadMessage && (
-                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                              {/* Edit button */}
+                                        </div>
+                                        
+                                        {/* Thread message action buttons - show on hover */}
+                                        {isOwnThreadMessage && (
+                                          <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 group-hover:pointer-events-auto pointer-events-none transition-opacity flex-shrink-0">
+                                              {/* Edit button - only for own messages */}
                                               <button
                                                 onClick={() => {
                                                   setEditingMessageId(threadMsg.id);
@@ -2130,9 +2276,95 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                               >
                                                 <Edit className="h-4 w-4" />
                                               </button>
+                                              
+                                              {/* Delete button - only for own messages */}
+                                              <button
+                                                onClick={async () => {
+                                                  if (!confirm('Are you sure you want to delete this thread message? This action cannot be undone.')) {
+                                                    return;
+                                                  }
+                                                  
+                                                  try {
+                                                    const deleteBody: any = {
+                                                      message_id: threadMsg.id,
+                                                    };
+                                                    
+                                                    if (selectedConversation?.type === 'direct_message') {
+                                                      const dmUsername = selectedConversation?.name || selectedConversation?.other_user || '';
+                                                      deleteBody.username = dmUsername;
+                                                    } else {
+                                                      // For channels/groups, use room_id
+                                                      let roomId = selectedConversation?.id || '';
+                                                      
+                                                      // For private groups, prefer rocket_chat_group_id
+                                                      if (selectedConversation?.type === 'private_group') {
+                                                        const group = groups.find(g => g.id === selectedConversation.id || g.name === selectedConversation.name);
+                                                        if (group && (group as any).rocket_chat_group_id) {
+                                                          roomId = (group as any).rocket_chat_group_id;
+                                                        } else if ((selectedConversation as any).rocket_chat_group_id) {
+                                                          roomId = (selectedConversation as any).rocket_chat_group_id;
+                                                        }
+                                                      }
+                                                      
+                                                      deleteBody.room_id = roomId;
+                                                    }
+                                                    
+                                                    console.log('Deleting thread message:', deleteBody);
+                                                    
+                                                    const response = await fetch('http://localhost:8000/chat/delete-message', {
+                                                      method: 'DELETE',
+                                                      headers: {
+                                                        'Content-Type': 'application/json',
+                                                        'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                                                      },
+                                                      body: JSON.stringify(deleteBody)
+                                                    });
+                                                    
+                                                    console.log('Delete response status:', response.status);
+                                                    const data = await response.json();
+                                                    console.log('Delete response data:', data);
+                                                    
+                                                    if (response.ok && data.success) {
+                                                      toast({
+                                                        title: "Message deleted",
+                                                        description: data.message || "Message has been deleted successfully",
+                                                      });
+                                                      
+                                                      // Remove from messages state
+                                                      setMessages(prevMessages =>
+                                                        prevMessages.map(msg => ({
+                                                          ...msg,
+                                                          thread_messages: (msg.thread_messages || []).filter(tm => tm.id !== threadMsg.id)
+                                                        }))
+                                                      );
+                                                      
+                                                      // Also remove from threadMessages state if the thread is fetched
+                                                      const parentMsg = messages.find(m => m.thread_messages?.some(tm => tm.id === threadMsg.id));
+                                                      if (parentMsg && threadMessages[parentMsg.id]) {
+                                                        setThreadMessages(prev => ({
+                                                          ...prev,
+                                                          [parentMsg.id]: prev[parentMsg.id].filter(msg => msg.id !== threadMsg.id)
+                                                        }));
+                                                      }
+                                                    } else {
+                                                      throw new Error(data.message || 'Failed to delete message');
+                                                    }
+                                                  } catch (error) {
+                                                    console.error('Failed to delete message:', error);
+                                                    toast({
+                                                      title: "Error",
+                                                      description: error instanceof Error ? error.message : "Failed to delete message",
+                                                      variant: "destructive",
+                                                    });
+                                                  }
+                                                }}
+                                                className="flex items-center justify-center w-6 h-6 rounded-full bg-gray-100 hover:bg-red-100 text-gray-600 hover:text-red-600 transition-colors"
+                                                title="Delete message"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
                                             </div>
                                           )}
-                                        </div>
                                       </div>
                                     );
                                     });
@@ -2580,9 +2812,34 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                       // Update the message in the local state
                       setMessages(messages.map(msg => 
                         msg.id === editingMessageId 
-                          ? { ...msg, text: editingMessageText.trim(), content: editingMessageText.trim() }
+                          ? { ...msg, text: editingMessageText.trim(), content: editingMessageText.trim(), editedAt: new Date().toISOString() }
                           : msg
                       ));
+                      
+                      // Also update thread messages if it's a thread message
+                      setMessages(prevMessages => 
+                        prevMessages.map(msg => ({
+                          ...msg,
+                          thread_messages: (msg.thread_messages || []).map(tm =>
+                            tm.id === editingMessageId
+                              ? { ...tm, text: editingMessageText.trim(), content: editingMessageText.trim(), editedAt: new Date().toISOString() }
+                              : tm
+                          )
+                        }))
+                      );
+                      
+                      // Also update threadMessages state if the thread is fetched
+                      const parentMsg = messages.find(m => m.thread_messages?.some(tm => tm.id === editingMessageId));
+                      if (parentMsg && threadMessages[parentMsg.id]) {
+                        setThreadMessages(prev => ({
+                          ...prev,
+                          [parentMsg.id]: prev[parentMsg.id].map(msg =>
+                            msg.id === editingMessageId
+                              ? { ...msg, text: editingMessageText.trim(), content: editingMessageText.trim(), editedAt: new Date().toISOString() }
+                              : msg
+                          )
+                        }));
+                      }
                       
                       toast({
                         title: "Success",

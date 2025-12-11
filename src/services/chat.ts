@@ -21,7 +21,7 @@ export interface ChatMessage {
   user: ChatUser;
   timestamp: string;
   type?: string; // 'system' for system messages, 'message' for user messages
-  edited_at?: string;
+  editedAt?: string;
   reactions?: Record<string, string[]>;
   thread_count?: number;
   thread_ts?: string; // Thread timestamp for Rocket.Chat

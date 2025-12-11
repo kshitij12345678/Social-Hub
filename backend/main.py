@@ -779,9 +779,19 @@ async def get_thread_messages(
         
         # Transform messages for frontend
         formatted_messages = []
+        current_username = current_user.email.split('@')[0]
+        
         for message in messages:
             try:
                 user_info = message.get("u", {})
+                message_username = user_info.get("username", "")
+                message_name = user_info.get("name", "")
+                
+                # Determine if this message is from the current user
+                is_own_message = (
+                    message_username == current_username or
+                    message_name == current_user.full_name
+                )
                 
                 # Handle timestamp - Rocket.Chat thread messages have different format
                 timestamp = message.get("ts", "")
@@ -793,6 +803,28 @@ async def get_thread_messages(
                 if updated_at and isinstance(updated_at, dict):
                     updated_at = updated_at.get("$date")
                     
+                # Handle editedAt field
+                edited_at = message.get("editedAt")
+                
+                # Convert emoji reactions format
+                reactions = {}
+                if message.get("reactions"):
+                    emoji_display_map = {
+                        ":+1:": "👍",
+                        ":heart:": "❤️",
+                        ":joy:": "😂",
+                        ":open_mouth:": "😮",
+                        ":cry:": "😢",
+                        ":rage:": "😡",
+                        ":thumbsup:": "👍",
+                        ":thumbsdown:": "👎",
+                        ":fire:": "🔥",
+                        ":100:": "💯"
+                    }
+                    for emoji, reaction_data in message.get("reactions", {}).items():
+                        display_emoji = emoji_display_map.get(emoji, emoji)
+                        reactions[display_emoji] = reaction_data.get("usernames", [])
+                    
                 formatted_message = {
                     "id": message.get("_id", ""),
                     "text": message.get("msg", ""),
@@ -802,13 +834,15 @@ async def get_thread_messages(
                         "name": user_info.get("name", user_info.get("username", "Unknown User"))
                     },
                     "timestamp": timestamp,
-                    "edited_at": updated_at,
-                    "reactions": message.get("reactions", {}),
+                    "editedAt": edited_at,
+                    "reactions": reactions,
                     "thread_count": message.get("tcount", 0),
-                    "thread_ts": message.get("tmid")
+                    "thread_ts": message.get("tmid"),
+                    "isOwn": is_own_message
                 }
                 formatted_messages.append(formatted_message)
-            except Exception:
+            except Exception as e:
+                print(f"DEBUG: Error formatting thread message: {e}")
                 continue
         
         return {"messages": formatted_messages}
@@ -1004,7 +1038,7 @@ async def get_general_messages(
                 # Only fetch thread messages if there are more than 0 messages in the thread
                 if thread_count > 0:
                     try:
-                        # Temporarily use admin headers instead of user headers for debugging
+                        # Get thread messages (using admin client)
                         thread_response = await rocket_client.get_thread_messages(msg.get("_id", ""))
                         if thread_response:
                             for thread_msg in thread_response:
@@ -1026,6 +1060,25 @@ async def get_general_messages(
                                         thread_user_name == current_user.full_name
                                     )
                                     
+                                    # Convert thread message reactions format
+                                    thread_reactions = {}
+                                    if thread_msg.get("reactions"):
+                                        emoji_display_map = {
+                                            ":+1:": "👍",
+                                            ":heart:": "❤️", 
+                                            ":joy:": "😂",
+                                            ":open_mouth:": "😮",
+                                            ":cry:": "😢",
+                                            ":rage:": "😡",
+                                            ":thumbsup:": "👍",
+                                            ":thumbsdown:": "👎",
+                                            ":fire:": "🔥",
+                                            ":100:": "💯"
+                                        }
+                                        for emoji, reaction_data in thread_msg["reactions"].items():
+                                            display_emoji = emoji_display_map.get(emoji, emoji)
+                                            thread_reactions[display_emoji] = reaction_data.get("usernames", [])
+                                    
                                     thread_messages.append({
                                         "id": thread_msg.get("_id", ""),
                                         "text": thread_msg.get("msg", ""),
@@ -1035,8 +1088,8 @@ async def get_general_messages(
                                             "name": thread_user_data.get("name", thread_user_data.get("username", "Unknown User"))
                                         },
                                         "timestamp": thread_timestamp,
-                                        "edited_at": thread_msg.get("_updatedAt"),
-                                        "reactions": thread_msg.get("reactions", {}),
+                                        "editedAt": thread_msg.get("editedAt"),
+                                        "reactions": thread_reactions,
                                         "is_thread_message": True,
                                         "isOwn": thread_is_own
                                     })
@@ -1094,7 +1147,7 @@ async def get_general_messages(
                     "content": msg.get("msg", ""),
                     "text": msg.get("msg", ""),
                     "timestamp": timestamp,
-                    "edited_at": msg.get("_updatedAt") if msg.get("_updatedAt") else None,
+                    "editedAt": msg.get("editedAt") if (msg.get("editedAt") and msg.get("editedAt") > msg.get("ts")) else None,
                     "isOwn": is_own_message,
                     "avatar": None,  # Rocket.Chat doesn't provide avatar URLs directly
                     "type": "system" if is_system else "message",
@@ -1426,11 +1479,37 @@ async def get_dm_messages(
                                 # Determine if this thread message is from the current user
                                 thread_message_username = thread_user_data.get("username", "")
                                 thread_message_name = thread_user_data.get("name", "")
+                                # Determine if this thread message is from the current user
+                                thread_message_username = thread_user_data.get("username", "")
+                                thread_message_name = thread_user_data.get("name", "")
+                                current_username = current_user.email.split('@')[0]
                                 thread_is_own = (
-                                    thread_message_username == current_user.email.split('@')[0] or
-                                    thread_message_username == current_user.email.split('@')[0] or
+                                    thread_message_username == current_username or
                                     thread_message_name == current_user.full_name
                                 )
+                                
+                                # Debug logging for thread message ownership
+                                if thread_message_username or thread_message_name:
+                                    print(f"DEBUG: DM thread message ownership - username: '{thread_message_username}' vs '{current_username}', name: '{thread_message_name}' vs '{current_user.full_name}', result: {thread_is_own}")
+                                
+                                # Convert thread message reactions format
+                                thread_reactions = {}
+                                if thread_msg.get("reactions"):
+                                    emoji_display_map = {
+                                        ":+1:": "👍",
+                                        ":heart:": "❤️", 
+                                        ":joy:": "😂",
+                                        ":open_mouth:": "😮",
+                                        ":cry:": "😢",
+                                        ":rage:": "😡",
+                                        ":thumbsup:": "👍",
+                                        ":thumbsdown:": "👎",
+                                        ":fire:": "🔥",
+                                        ":100:": "💯"
+                                    }
+                                    for emoji, reaction_data in thread_msg["reactions"].items():
+                                        display_emoji = emoji_display_map.get(emoji, emoji)
+                                        thread_reactions[display_emoji] = reaction_data.get("usernames", [])
                                 
                                 thread_messages.append({
                                     "id": thread_msg.get("_id", ""),
@@ -1441,8 +1520,8 @@ async def get_dm_messages(
                                         "name": thread_user_data.get("name", thread_user_data.get("username", "Unknown User"))
                                     },
                                     "timestamp": thread_timestamp,
-                                    "edited_at": thread_msg.get("_updatedAt"),
-                                    "reactions": thread_msg.get("reactions", {}),
+                                    "editedAt": thread_msg.get("editedAt"),
+                                    "reactions": thread_reactions,
                                     "is_thread_message": True,
                                     "isOwn": thread_is_own
                                 })
@@ -1519,7 +1598,7 @@ async def get_dm_messages(
                 "content": msg.get("msg", ""),
                 "text": msg.get("msg", ""),
                 "timestamp": timestamp,
-                "edited_at": msg.get("editedAt") if msg.get("editedAt") else None,
+                "editedAt": msg.get("editedAt") if (msg.get("editedAt") and msg.get("editedAt") > msg.get("ts")) else None,
                 "isOwn": is_own_message,
                 "avatar": None,
                 "type": "message",
@@ -2213,12 +2292,17 @@ async def get_channel_messages_by_id(
             # Only fetch thread messages if there are more than 0 messages in the thread
             if thread_count > 0:
                 try:
-                    # Temporarily use admin headers instead of user headers for debugging
-                    thread_response = await rocket_client.get_thread_messages(msg.get("_id", ""))
+                    # Use user-specific headers for API calls (required for some operations)
+                    print(f"DEBUG: About to fetch thread messages for message {msg.get('_id', '')} with user_headers={user_headers is not None}")
+                    thread_response = await rocket_client.get_thread_messages(msg.get("_id", ""), user_headers)
+                    print(f"DEBUG: Thread response received: {thread_response is not None}, length: {len(thread_response) if thread_response else 0}")
                     if thread_response:
+                        print(f"DEBUG: Processing {len(thread_response)} thread messages for general channel message")
                         for thread_msg in thread_response:
+                            print(f"DEBUG: Raw thread_msg = {thread_msg}")
                             if isinstance(thread_msg, dict):
                                 thread_user_data = thread_msg.get("u", {})
+                                print(f"DEBUG: thread_user_data extracted: {thread_user_data}")
                                 thread_timestamp = thread_msg.get("ts", "")
                                 if isinstance(thread_timestamp, dict):
                                     thread_timestamp = thread_timestamp.get("$date", "")
@@ -2230,11 +2314,34 @@ async def get_channel_messages_by_id(
                                 # Determine if this thread message is from the current user
                                 thread_message_username = thread_user_data.get("username", "")
                                 thread_message_name = thread_user_data.get("name", "")
+                                current_username = current_user.email.split('@')[0]
                                 thread_is_own = (
-                                    thread_message_username == current_user.email.split('@')[0] or
-                                    thread_message_username == current_user.email.split('@')[0] or
+                                    thread_message_username == current_username or
                                     thread_message_name == current_user.full_name
                                 )
+                                
+                                # Debug logging for thread message ownership
+                                if thread_message_username or thread_message_name:
+                                    print(f"DEBUG: GENERAL CHANNEL thread message ownership - username: '{thread_message_username}' vs '{current_username}', name: '{thread_message_name}' vs '{current_user.full_name}', result: {thread_is_own}")
+                                
+                                # Convert thread message reactions format
+                                thread_reactions = {}
+                                if thread_msg.get("reactions"):
+                                    emoji_display_map = {
+                                        ":+1:": "👍",
+                                        ":heart:": "❤️", 
+                                        ":joy:": "😂",
+                                        ":open_mouth:": "😮",
+                                        ":cry:": "😢",
+                                        ":rage:": "😡",
+                                        ":thumbsup:": "👍",
+                                        ":thumbsdown:": "👎",
+                                        ":fire:": "🔥",
+                                        ":100:": "💯"
+                                    }
+                                    for emoji, reaction_data in thread_msg["reactions"].items():
+                                        display_emoji = emoji_display_map.get(emoji, emoji)
+                                        thread_reactions[display_emoji] = reaction_data.get("usernames", [])
                                 
                                 thread_messages.append({
                                     "id": thread_msg.get("_id", ""),
@@ -2245,11 +2352,12 @@ async def get_channel_messages_by_id(
                                         "name": thread_user_data.get("name", thread_user_data.get("username", "Unknown User"))
                                     },
                                     "timestamp": thread_timestamp,
-                                    "edited_at": thread_msg.get("_updatedAt"),
-                                    "reactions": thread_msg.get("reactions", {}),
+                                    "editedAt": thread_msg.get("editedAt"),
+                                    "reactions": thread_reactions,
                                     "is_thread_message": True,
                                     "isOwn": thread_is_own
                                 })
+                                print(f"DEBUG: GENERAL CHANNEL added thread message with isOwn={thread_is_own}")
                 except Exception as e:
                     print(f"DEBUG: Failed to fetch thread messages for {msg.get('_id', '')}: {e}")
             
@@ -2448,7 +2556,7 @@ async def get_channel_messages_by_id(
                     "name": user_data.get("name") or user_data.get("username", "Unknown User")
                 },
                 "timestamp": timestamp,
-                "edited_at": msg.get("editedAt") if msg.get("editedAt") else None,
+                "editedAt": msg.get("editedAt") if (msg.get("editedAt") and msg.get("editedAt") > msg.get("ts")) else None,
                 "reactions": reactions,
                 "thread_count": thread_count,
                 "thread_ts": msg.get("tmid"),
@@ -2467,6 +2575,9 @@ async def get_channel_messages_by_id(
         # rather than nested in the parent message's thread_messages array (unlike channels and DMs)
         message_dict = {msg['id']: msg for msg in formatted_messages}
         
+        # Collect all thread message IDs that should be nested, so we can remove them from root level later
+        thread_message_ids_to_remove = set()
+        
         for msg in formatted_messages:
             # Only organize if thread_messages array is empty (not already populated)
             if not msg.get('thread_messages'):
@@ -2478,14 +2589,18 @@ async def get_channel_messages_by_id(
                         # If another message has this message's ID as its thread_ts, it's a thread reply
                         if other_msg.get('thread_ts') == msg['id']:
                             msg['thread_messages'].append(other_msg)
+                            thread_message_ids_to_remove.add(other_msg['id'])
                     
                     print(f"DEBUG: Organized {len(msg['thread_messages'])} thread messages for message {msg['id']}")
 
-        for i in formatted_messages:
+        # Remove thread messages from root level (they should only appear nested in their parent)
+        final_messages = [msg for msg in formatted_messages if msg['id'] not in thread_message_ids_to_remove]
+        
+        for i in final_messages:
             print(f"DEBUG: Formatted message: {i}")
         
-        print(f"DEBUG: Returning {len(formatted_messages)} formatted messages with threads and reactions")
-        return formatted_messages
+        print(f"DEBUG: Returning {len(final_messages)} formatted messages with threads and reactions")
+        return final_messages
         
     except Exception as e:
         print(f"Error getting channel messages: {e}")

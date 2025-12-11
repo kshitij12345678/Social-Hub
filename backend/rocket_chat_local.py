@@ -983,10 +983,33 @@ class RocketChatClient:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    print(f"DEBUG: Thread messages API response: {result}")
                     if result.get('success'):
                         messages = result.get('messages', [])
                         print(f"DEBUG: Found {len(messages)} thread messages")
+                        
+                        # Convert emoji reactions from colon format to unicode
+                        emoji_display_map = {
+                            ":+1:": "👍",
+                            ":heart:": "❤️", 
+                            ":joy:": "😂",
+                            ":open_mouth:": "😮",
+                            ":cry:": "😢",
+                            ":rage:": "😡",
+                            ":thumbsup:": "👍",
+                            ":thumbsdown:": "👎",
+                            ":fire:": "🔥",
+                            ":100:": "💯"
+                        }
+                        
+                        for msg in messages:
+                            if msg.get("reactions"):
+                                converted_reactions = {}
+                                for emoji, reaction_data in msg["reactions"].items():
+                                    display_emoji = emoji_display_map.get(emoji, emoji)
+                                    converted_reactions[display_emoji] = reaction_data.get("usernames", [])
+                                msg["reactions"] = converted_reactions
+                        
+                        print(f"DEBUG: Thread messages API response: {result}")
                         return messages
                     else:
                         print(f"DEBUG: Thread messages API failed: {result.get('error', 'Unknown error')}")
