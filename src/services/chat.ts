@@ -11,6 +11,7 @@ export interface ChatUser {
   username: string;
   name: string;
   avatar?: string;
+  email?: string; // User email
 }
 
 export interface ChatMessage {
@@ -27,6 +28,12 @@ export interface ChatMessage {
   thread_messages?: ChatMessage[]; // Thread messages
   reply_count?: number;
   is_thread_message?: boolean; // Flag to identify thread messages
+  isOwn?: boolean; // Whether this message is from current user
+  sender?: string; // Sender username (for compatibility)
+  room_id?: string; // Room ID for routing
+  room_name?: string; // Room name for display
+  room_type?: string; // Room type (channel, group, direct)
+  tmid?: string; // Thread message ID
   file?: {
     id: string;
     name: string;
@@ -40,6 +47,8 @@ export interface ChatMessage {
     image_url?: string;
     type: string;
     size: number;
+    author_name?: string; // For forwarded messages
+    text?: string; // For forwarded messages
   }>;
 }
 
@@ -54,6 +63,7 @@ export interface ChatConversation {
   joined?: boolean;
   other_user?: string;
   last_message?: ChatMessage;
+  last_message_time?: string | null; // Last message timestamp
   unread_count: number;
   rocket_chat_group_id?: string; // Add this field for private groups
 }

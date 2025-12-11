@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { type ChatConversation, type ChatMessage } from '@/services/chat';
 import { chatService as rocketChatService } from '@/services/chat';
 import { useToast } from '@/hooks/use-toast';
-import { Hash, Lock, MessageCircle, Users, User, Search, Send, Smile, Reply, Paperclip, Image, File, Mic, Video, MoreHorizontal, UserPlus, Pin, Trash2, Phone } from 'lucide-react';
+import { Hash, Lock, MessageCircle, Users, User, Search, Send, Smile, Reply, Paperclip, Image, File, Mic, Video, MoreHorizontal, UserPlus, Pin, Trash2, Phone, Share2 } from 'lucide-react';
 import { UserSearch } from './UserSearch';
 import { UserSearchResult } from '@/services/api';
 
@@ -103,6 +103,14 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
   // User search
   const [showUserSearch, setShowUserSearch] = useState(false);
   
+  // Forward message state
+  const [showForwardDialog, setShowForwardDialog] = useState(false);
+  const [forwardingMessageId, setForwardingMessageId] = useState<string | null>(null);
+  const [forwardSearchQuery, setForwardSearchQuery] = useState('');
+  const [forwardSearchResults, setForwardSearchResults] = useState<ChatConversation[]>([]);
+  const [forwardingTo, setForwardingTo] = useState<ChatConversation | null>(null);
+  const [isForwarding, setIsForwarding] = useState(false);
+  
   const { isAuthenticated, user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -148,39 +156,46 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
     return null;
   };
 
-  // Removed auto-scroll to bottom when messages change
-  // useEffect(() => {
-  //   scrollToBottom();
-  // }, [messages]);
-
-  // Load conversations when component mounts
-  useEffect(() => {
-    console.log('🔍 EnhancedMessagesWidget useEffect - isAuthenticated:', isAuthenticated, 'isInitialized:', isInitialized, 'openGroup:', openGroup);
-    if (isAuthenticated && !isInitialized) {
-      console.log('🔄 Starting to load channels and DMs...');
-      loadChannelsAndDMs();
+  // Load pinned messages for a conversation
+  const loadPinnedMessages = async (roomId: string) => {
+    if (!roomId) return;
+    
+    try {
+      console.log('📌 Loading pinned messages with room_id:', roomId);
+      
+      const response = await fetch(`http://localhost:8000/chat/pinned-messages?room_id=${encodeURIComponent(roomId)}`, {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('📌 Loaded pinned messages:', data);
+        
+        if (data.pinned_messages && Array.isArray(data.pinned_messages)) {
+          // Convert pinned messages to ChatMessage format
+          const pinnedMsgs: ChatMessage[] = data.pinned_messages.map((pm: Record<string, unknown>) => ({
+            id: pm.message_id as string,
+            text: pm.message_text as string,
+            content: pm.message_text as string,
+            sender: 'System',
+            timestamp: pm.pinned_at as string,
+            user: { id: 'system', username: 'system', name: 'System' },
+            reactions: {},
+            thread_count: 0
+          }));
+          
+          setPinnedMessages(pinnedMsgs);
+          setPinnedMessageIds(new Set(data.pinned_messages.map((pm: Record<string, unknown>) => pm.message_id as string)));
+        }
+      }
+    } catch (error) {
+      console.error('Failed to load pinned messages:', error);
     }
-  }, [isAuthenticated, isInitialized, openGroup]);
+  };
 
-
-  // Filter DMs based on messages
-  useEffect(() => {
-    let isMounted = true;
-    console.log('🔍 DM Filter Effect - directMessages:', directMessages);
-    if (directMessages.length > 0) {
-      setLoadingFilteredDMs(true);
-      // Simply use all DMs without filtering by messages
-      setFilteredDMs(directMessages);
-      setLoadingFilteredDMs(false);
-    } else {
-      console.log('❌ No direct messages to filter');
-      setFilteredDMs([]);
-      setLoadingFilteredDMs(false);
-    }
-    return () => { isMounted = false; };
-  }, [directMessages]);
-
-  const loadChannelsAndDMs = async () => {
+  const loadChannelsAndDMs = useCallback(async () => {
     console.log('🔄 Loading channels, groups and DMs...');
     console.log('🔍 User info:', { isAuthenticated, user: user?.email });
     console.log('🔍 Token in localStorage:', !!localStorage.getItem('access_token'));
@@ -245,7 +260,77 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
       // If we have a conversation to select, load its messages
       if (conversationToSelect) {
         console.log('🔄 Loading messages for selected conversation:', conversationToSelect);
-        await handleConversationSelect(conversationToSelect);
+        setSelectedConversation(conversationToSelect);
+        saveSelectedConversation(conversationToSelect);
+        setLoadingMessages(true);
+
+        try {
+          let conversationMessages: ChatMessage[] = [];
+          
+          if (conversationToSelect.type === 'direct_message' && conversationToSelect.other_user) {
+            // Use the conversation name (Rocket.Chat username) instead of display name
+            const username = conversationToSelect.name || conversationToSelect.other_user;
+            console.log('Loading DM messages for username:', username, 'display_name:', conversationToSelect.other_user);
+            conversationMessages = await rocketChatService.getDirectMessageMessages(username);
+          } else {
+            console.log('Loading channel messages for:', conversationToSelect.name || conversationToSelect.id);
+            conversationMessages = await rocketChatService.getRocketChatChannelMessages(
+              conversationToSelect.name || conversationToSelect.id,
+              conversationToSelect.type === 'private_group' ? 'group' : 'channel'
+            );
+          }
+          
+          console.log('Loaded messages count:', conversationMessages.length);
+          
+          // Load pinned messages for this conversation
+          // For DMs, use the composite room_id format
+          const roomIdForPinned = conversationToSelect.type === 'direct_message'
+            ? `dm:${conversationToSelect.name || conversationToSelect.other_user || ''}`
+            : conversationToSelect.id;
+          loadPinnedMessages(roomIdForPinned);
+          
+          // Debug: Check which messages are thread messages
+          const threadMsgs = conversationMessages.filter(msg => msg.is_thread_message);
+          console.log('Thread messages found:', threadMsgs.length);
+          threadMsgs.forEach((msg, index) => {
+            console.log(`Thread message ${index}:`, {
+              id: msg.id,
+              text: msg.text,
+              is_thread_message: msg.is_thread_message,
+              sender: msg.sender,
+              user: msg.user
+            });
+          });
+          
+          // Simplified thread message detection - only check explicit metadata
+          const isThreadMessage = (msg: ChatMessage): boolean => {
+            // Only filter messages that have explicit thread metadata
+            if (msg.is_thread_message === true || msg.thread_ts || msg.tmid) {
+              return true;
+            }
+            return false;
+          };
+          
+          // Filter out thread messages from the main message list (only those with explicit thread metadata)
+          const filteredMessages = conversationMessages.filter(msg => {
+            if (isThreadMessage(msg)) {
+              return false;
+            }
+            return true;
+          });
+          console.log('Total messages loaded:', conversationMessages.length);
+          console.log('Filtered messages (excluding thread messages):', filteredMessages.length);
+          setMessages(filteredMessages);
+        } catch (error) {
+          console.error('Failed to load messages:', error);
+          toast({
+            title: "Error",
+            description: "Failed to load messages",
+            variant: "destructive",
+          });
+        } finally {
+          setLoadingMessages(false);
+        }
       }
       
       setIsInitialized(true);
@@ -261,46 +346,39 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
       setLoadingGroups(false);
       setLoadingDMs(false);
     }
-  };
+  }, [isAuthenticated, user?.email, openGroup, toast]);
 
-  // Load pinned messages for a conversation
-  const loadPinnedMessages = async (roomId: string) => {
-    if (!roomId) return;
-    
-    try {
-      console.log('📌 Loading pinned messages with room_id:', roomId);
-      
-      const response = await fetch(`http://localhost:8000/chat/pinned-messages?room_id=${encodeURIComponent(roomId)}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        console.log('📌 Loaded pinned messages:', data);
-        
-        if (data.pinned_messages && Array.isArray(data.pinned_messages)) {
-          // Convert pinned messages to ChatMessage format
-          const pinnedMsgs: ChatMessage[] = data.pinned_messages.map((pm: any) => ({
-            id: pm.message_id,
-            text: pm.message_text,
-            content: pm.message_text,
-            sender: 'System',
-            timestamp: pm.pinned_at,
-            user: { username: 'system', name: 'System' },
-            reactions: {},
-            thread_count: 0
-          }));
-          
-          setPinnedMessages(pinnedMsgs);
-          setPinnedMessageIds(new Set(data.pinned_messages.map((pm: any) => pm.message_id)));
-        }
-      }
-    } catch (error) {
-      console.error('Failed to load pinned messages:', error);
+  // Removed auto-scroll to bottom when messages change
+  // useEffect(() => {
+  //   scrollToBottom();
+  // }, [messages]);
+
+  // Load conversations when component mounts
+  useEffect(() => {
+    console.log('🔍 EnhancedMessagesWidget useEffect - isAuthenticated:', isAuthenticated, 'isInitialized:', isInitialized, 'openGroup:', openGroup);
+    if (isAuthenticated && !isInitialized) {
+      console.log('🔄 Starting to load channels and DMs...');
+      loadChannelsAndDMs();
     }
-  };
+  }, [isAuthenticated, isInitialized, openGroup, loadChannelsAndDMs]);
+
+
+  // Filter DMs based on messages
+  useEffect(() => {
+    let isMounted = true;
+    console.log('🔍 DM Filter Effect - directMessages:', directMessages);
+    if (directMessages.length > 0) {
+      setLoadingFilteredDMs(true);
+      // Simply use all DMs without filtering by messages
+      setFilteredDMs(directMessages);
+      setLoadingFilteredDMs(false);
+    } else {
+      console.log('❌ No direct messages to filter');
+      setFilteredDMs([]);
+      setLoadingFilteredDMs(false);
+    }
+    return () => { isMounted = false; };
+  }, [directMessages]);
 
   const handleConversationSelect = async (conversation: ChatConversation) => {
     console.log('Selecting conversation:', conversation);
@@ -869,16 +947,18 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
     });
     
     switch (activeTab) {
-      case 'all':
+      case 'all': {
         // All tab should only show merged Groups and DMs content
         const generalChannel = channels.find(ch => ch.name === 'general');
         const groupsWithGeneral = generalChannel ? [generalChannel, ...groups] : groups;
         return [...groupsWithGeneral, ...filteredDMs];
-      case 'groups':
+      }
+      case 'groups': {
         // Include the general channel as it's the main group conversation
         const generalChannelForGroups = channels.find(ch => ch.name === 'general');
         const groupsWithGeneralForGroups = generalChannelForGroups ? [generalChannelForGroups, ...groups] : groups;
         return groupsWithGeneralForGroups;
+      }
       case 'dms':
         return filteredDMs;
       default:
@@ -1438,12 +1518,28 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                       {message.user?.username || message.user?.name || message.sender}
                                     </div>
                                   )}
-                                  <p className="text-sm">{message.text || message.content}</p>
+                                  
+                                  {/* Check if this is a forwarded message */}
+                                  {message.attachments && message.attachments.length > 0 && message.attachments[0]?.type === 'forwarded_message' ? (
+                                    <div className="border-l-2 border-gray-400 pl-3 py-2">
+                                      <div className="text-xs font-semibold text-gray-600 mb-1">
+                                        {message.attachments[0].author_name}
+                                      </div>
+                                      <p className="text-sm">{message.attachments[0].text}</p>
+                                    </div>
+                                  ) : (
+                                    <p className="text-sm">{message.text || message.content}</p>
+                                  )}
                                   
                                   {/* File Attachments Display */}
                                   {message.attachments && message.attachments.length > 0 && (
                                     <div className="mt-2 space-y-2">
                                       {message.attachments.map((attachment: any, index: number) => {
+                                        // Skip forwarded messages - they're already displayed above
+                                        if (attachment.type === 'forwarded_message') {
+                                          return null;
+                                        }
+                                        
                                         // Check if attachment is an image
                                         const isImage = attachment.type && attachment.type.startsWith('image/');
                                         const isImageFile = attachment.filename && 
@@ -1770,6 +1866,47 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                           <Pin className={`h-4 w-4 ${pinnedMessageIds.has(message.id) ? 'fill-current' : ''}`} />
                                         </button>
                                         
+                                        {/* Forward button */}
+                                        <button
+                                          onClick={async () => {
+                                            setForwardingMessageId(message.id);
+                                            setShowForwardDialog(true);
+                                            setForwardSearchQuery('');
+                                            setForwardSearchResults([]);
+                                            setForwardingTo(null);
+                                            
+                                            // Load forward targets from backend
+                                            try {
+                                              const response = await fetch('http://localhost:8000/chat/forward-targets', {
+                                                headers: {
+                                                  'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                                                }
+                                              });
+                                              
+                                              if (!response.ok) {
+                                                throw new Error('Failed to load forward targets');
+                                              }
+                                              
+                                              const data = await response.json();
+                                              console.log('Forward targets loaded:', data);
+                                              setChannels(data.channels || []);
+                                              setGroups(data.groups || []);
+                                              setDirectMessages(data.direct_messages || []);
+                                            } catch (error) {
+                                              console.error('Error loading forward targets:', error);
+                                              toast({
+                                                title: "Error",
+                                                description: "Failed to load conversations",
+                                                variant: "destructive"
+                                              });
+                                            }
+                                          }}
+                                          className="flex items-center justify-center w-6 h-6 rounded-full transition-colors bg-gray-100 hover:bg-gray-200 text-gray-600"
+                                          title="Forward message"
+                                        >
+                                          <Share2 className="h-4 w-4" />
+                                        </button>
+                                        
                                         {/* Delete button */}
                                         <button
                                           onClick={async () => {
@@ -1941,7 +2078,19 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 {threadMsg.user?.username || threadMsg.user?.name}
                                               </div>
                                             )}
-                                            <p className="text-sm">{threadMsg.text || threadMsg.content}</p>
+                                            
+                                            {/* Check if this is a forwarded message */}
+                                            {threadMsg.attachments && threadMsg.attachments.length > 0 && threadMsg.attachments[0]?.type === 'forwarded_message' ? (
+                                              <div className="border-l-2 border-gray-400 pl-3 py-2">
+                                                <div className="text-xs font-semibold opacity-75 mb-1">
+                                                  {threadMsg.attachments[0].author_name}
+                                                </div>
+                                                <p className="text-sm">{threadMsg.attachments[0].text}</p>
+                                              </div>
+                                            ) : (
+                                              <p className="text-sm">{threadMsg.text || threadMsg.content}</p>
+                                            )}
+                                            
                                             <div className="text-xs opacity-70 mt-1">
                                               {formatMessageTime(threadMsg.timestamp)}
                                             </div>
@@ -2142,6 +2291,197 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
           onUserSelect={handleUserSelect}
           onClose={() => setShowUserSearch(false)}
         />
+      )}
+      
+      {/* Forward Message Dialog */}
+      {showForwardDialog && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <Card className="w-full max-w-md">
+            <div className="p-6 space-y-4">
+              <div>
+                <h2 className="text-lg font-semibold">Forward Message</h2>
+                <p className="text-sm text-gray-500">Select where to forward this message</p>
+              </div>
+              
+              {/* Search input */}
+              <div>
+                <Input
+                  placeholder="Search groups, channels, or DMs..."
+                  value={forwardSearchQuery}
+                  onChange={(e) => {
+                    const query = e.target.value.toLowerCase();
+                    setForwardSearchQuery(query);
+                    
+                    if (query.trim()) {
+                      // Search across all conversation types
+                      const results: ChatConversation[] = [];
+                      
+                      // Search in channels
+                      channels.forEach(c => {
+                        if (c.name.toLowerCase().includes(query) || c.display_name?.toLowerCase().includes(query)) {
+                          results.push(c);
+                        }
+                      });
+                      
+                      // Search in groups
+                      groups.forEach(g => {
+                        if (g.name.toLowerCase().includes(query) || g.display_name?.toLowerCase().includes(query)) {
+                          results.push(g);
+                        }
+                      });
+                      
+                      // Search in DMs
+                      directMessages.forEach(dm => {
+                        if (dm.name.toLowerCase().includes(query) || 
+                            dm.display_name?.toLowerCase().includes(query) ||
+                            dm.other_user?.toLowerCase().includes(query)) {
+                          results.push(dm);
+                        }
+                      });
+                      
+                      setForwardSearchResults(results);
+                    } else {
+                      setForwardSearchResults([]);
+                    }
+                  }}
+                  className="w-full"
+                />
+              </div>
+              
+              {/* Search results */}
+              {forwardSearchResults.length > 0 && (
+                <div className="max-h-64 overflow-y-auto border rounded-lg">
+                  {forwardSearchResults.map((conv) => (
+                    <div
+                      key={`${conv.type}-${conv.id}`}
+                      onClick={() => setForwardingTo(conv)}
+                      className={`p-3 border-b cursor-pointer hover:bg-gray-50 flex items-center space-x-3 ${
+                        forwardingTo?.id === conv.id && forwardingTo?.type === conv.type
+                          ? 'bg-blue-50 border-blue-300'
+                          : ''
+                      }`}
+                    >
+                      {conv.type === 'direct_message' ? (
+                        <User className="w-5 h-5 text-gray-500" />
+                      ) : conv.type === 'private_group' ? (
+                        <Lock className="w-5 h-5 text-gray-500" />
+                      ) : (
+                        <Hash className="w-5 h-5 text-gray-500" />
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-medium truncate">{conv.display_name || conv.name}</p>
+                        <p className="text-xs text-gray-500">
+                          {conv.type === 'direct_message'
+                            ? `DM with ${conv.other_user || conv.name}`
+                            : conv.type === 'private_group'
+                            ? 'Private Group'
+                            : 'Channel'}
+                        </p>
+                      </div>
+                      {forwardingTo?.id === conv.id && forwardingTo?.type === conv.type && (
+                        <div className="w-4 h-4 rounded-full bg-blue-600"></div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {forwardSearchQuery && forwardSearchResults.length === 0 && (
+                <div className="text-center py-4 text-sm text-gray-500">
+                  No conversations found
+                </div>
+              )}
+              
+              {!forwardSearchQuery && (
+                <div className="text-center py-4 text-sm text-gray-500">
+                  Start typing to search conversations
+                </div>
+              )}
+              
+              {/* Action buttons */}
+              <div className="flex gap-2 pt-4">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowForwardDialog(false);
+                    setForwardingMessageId(null);
+                    setForwardingTo(null);
+                  }}
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!forwardingMessageId || !forwardingTo) {
+                      toast({
+                        title: "Error",
+                        description: "Please select a conversation",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    
+                    setIsForwarding(true);
+                    try {
+                      const message = messages.find(m => m.id === forwardingMessageId);
+                      if (!message) {
+                        throw new Error("Message not found");
+                      }
+                      
+                      // Prepare forward data with message ID
+                      const forwardData = {
+                        message_id: forwardingMessageId,
+                        target_type: forwardingTo.type === 'direct_message' ? 'dm' : forwardingTo.type === 'private_group' ? 'group' : 'channel',
+                        target_id: forwardingTo.type === 'direct_message' ? (forwardingTo.name || forwardingTo.other_user || '') : (forwardingTo.id || '')
+                      };
+                      
+                      console.log('Forwarding message:', forwardData);
+                      
+                      const response = await fetch('http://localhost:8000/chat/forward-message', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                        },
+                        body: JSON.stringify(forwardData)
+                      });
+                      
+                      const data = await response.json();
+                      if (!response.ok) {
+                        throw new Error(data.detail || 'Failed to forward message');
+                      }
+                      
+                      toast({
+                        title: "Success",
+                        description: `Message forwarded to ${forwardingTo.display_name || forwardingTo.name}`
+                      });
+                      
+                      setShowForwardDialog(false);
+                      setForwardingMessageId(null);
+                      setForwardingTo(null);
+                      setForwardSearchQuery('');
+                      setForwardSearchResults([]);
+                    } catch (error) {
+                      console.error('Error forwarding message:', error);
+                      toast({
+                        title: "Error",
+                        description: error instanceof Error ? error.message : 'Failed to forward message',
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsForwarding(false);
+                    }
+                  }}
+                  disabled={!forwardingTo || isForwarding}
+                  className="flex-1"
+                >
+                  {isForwarding ? 'Forwarding...' : 'Forward'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </ResponsiveLayout>
   );

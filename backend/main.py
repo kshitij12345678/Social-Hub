@@ -1142,6 +1142,132 @@ async def send_message_to_general(
         print(f"Error sending message to general channel: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
 
+@app.post("/chat/forward-message")
+async def forward_message(
+    forward_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Forward a message to a group, channel, or DM using Rocket.Chat's forward API"""
+    try:
+        print(f"DEBUG: Forwarding message from user: {current_user.email}")
+        print(f"DEBUG: Forward data: {forward_data}")
+        
+        message_id = forward_data.get("message_id", "")
+        target_type = forward_data.get("target_type", "")  # 'group', 'channel', or 'dm'
+        target_id = forward_data.get("target_id", "")
+        
+        if not message_id or not target_type or not target_id:
+            raise HTTPException(status_code=400, detail="Missing required fields: message_id, target_type, target_id")
+        
+        # Get user-specific headers for API calls
+        user_headers = await rocket_client.get_user_headers(
+            social_hub_user_email=current_user.email,
+            social_hub_user_name=current_user.full_name,
+            social_hub_user_id=str(current_user.id),
+            db_session=db
+        )
+        
+        if not user_headers:
+            raise HTTPException(status_code=401, detail="Failed to get user authentication headers")
+        
+        # Get the target room ID based on target type
+        target_room_id = None
+        
+        if target_type == "channel":
+            # Get room ID for channel
+            target_room_id = await rocket_client.get_channel_id_by_name(target_id, "channel", user_headers)
+        elif target_type == "group":
+            # Get room ID for private group
+            target_room_id = await rocket_client.get_channel_id_by_name(target_id, "group", user_headers)
+        elif target_type == "dm":
+            # For DMs, target_id is the username, get the room ID
+            target_room_id = await rocket_client.get_dm_room_id(target_id, user_headers)
+        else:
+            raise HTTPException(status_code=400, detail=f"Invalid target_type: {target_type}")
+        
+        if not target_room_id:
+            raise HTTPException(status_code=400, detail=f"Could not find target {target_type} with ID: {target_id}")
+        
+        # Use Rocket.Chat's forward API
+        result = await rocket_client.forward_message(message_id, target_room_id, user_headers)
+        
+        print(f"DEBUG: Forward result: {result}")
+        
+        if result.get('success'):
+            return {"success": True, "message": "Message forwarded successfully"}
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to forward message: {result.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error forwarding message: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to forward message: {str(e)}")
+
+@app.get("/chat/forward-targets")
+async def get_forward_targets(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    """Get all groups, channels, and users for forward dialog"""
+    try:
+        print(f"DEBUG: Getting forward targets for user: {current_user.email}")
+        
+        # Get all groups from database
+        groups = db.query(Group).all()
+        print(f"DEBUG: Found {len(groups)} groups")
+        
+        group_list = []
+        for group in groups:
+            group_list.append({
+                "id": group.name,  # Use group name (username) for API calls
+                "name": group.name,
+                "display_name": group.name,
+                "type": "private_group",
+                "unread_count": 0
+            })
+        
+        # Get all users (except current user) for DMs
+        users = db.query(User).filter(User.id != current_user.id).all()
+        print(f"DEBUG: Found {len(users)} users for DMs")
+        
+        dm_list = []
+        for user in users:
+            dm_list.append({
+                "id": str(user.id),
+                "name": user.rocket_chat_username or user.email.split('@')[0],
+                "display_name": user.full_name or user.rocket_chat_username or user.email,
+                "other_user": user.rocket_chat_username or user.email.split('@')[0],
+                "type": "direct_message",
+                "unread_count": 0
+            })
+        
+        # Add general channel
+        channels = [
+            {
+                "id": "general",
+                "name": "general",
+                "display_name": "General",
+                "type": "channel",
+                "unread_count": 0
+            }
+        ]
+        
+        result = {
+            "channels": channels,
+            "groups": group_list,
+            "direct_messages": dm_list
+        }
+        
+        print(f"DEBUG: Returning {len(channels)} channels, {len(group_list)} groups, {len(dm_list)} DMs")
+        return result
+        
+    except Exception as e:
+        print(f"Error getting forward targets: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to get forward targets: {str(e)}")
+
 @app.get("/api/rocket-chat/dm-messages")
 async def get_dm_messages(
     username: str,
@@ -1172,6 +1298,8 @@ async def get_dm_messages(
 
             if msg.get('t') == "message_pinned":
                 continue
+            
+            #print(f"Message text is {msg.get('attachments').get('text')} and sender message is {msg.get('author_name')}")
             
             print(f"DEBUG: Processing DM message {i}: {msg}")
             user_data = msg.get("u", {})
@@ -1262,35 +1390,52 @@ async def get_dm_messages(
             if msg.get("attachments"):
                 rocket_url = os.getenv('ROCKET_CHAT_URL', 'http://10.68.0.49:30082')
                 for att in msg["attachments"]:
-                    image_url = att.get("title_link") or att.get("image_url") or att.get("url")
-                    # Convert to full Rocket.Chat URLs
-                    if image_url and not image_url.startswith("http"):
-                        image_url = f"{rocket_url}{image_url if image_url.startswith('/') else '/' + image_url}"
-                    elif image_url and image_url.startswith("http"):
-                        # Already full URL, use as is
-                        pass
-                    
-                    # Add auth tokens to URL for secure access
-                    user_headers = await rocket_client.get_user_headers(
-                        social_hub_user_email=current_user.email,
-                        social_hub_user_name=current_user.full_name,
-                        social_hub_user_id=str(current_user.id),
-                        db_session=db
-                    )
-                    rc_token = user_headers.get('X-Auth-Token', '')
-                    rc_uid = user_headers.get('X-User-Id', '')
-                    if rc_token and rc_uid and image_url:
-                        image_url = f"{image_url}?rc_uid={rc_uid}&rc_token={rc_token}"
-                    
-                    attachments.append({
-                        "id": att.get("_id", ""),
-                        "title": att.get("title", ""),
-                        "filename": att.get("title") or att.get("filename", ""),
-                        "url": image_url,
-                        "type": att.get("image_type") or att.get("type", "application/octet-stream"),
-                        "size": att.get("image_size") or att.get("size") or 0,
-                        "preview": f"data:image/jpeg;base64,{att.get('image_preview')}" if att.get('image_preview') else None
-                    })
+                    # Check if this is a forwarded message (has author_name and text fields)
+                    if att.get("author_name") and att.get("text"):
+                        # This is a forwarded message
+                        attachments.append({
+                            "id": att.get("_id", ""),
+                            "title": "",
+                            "filename": "",
+                            "url": None,
+                            "type": "forwarded_message",
+                            "size": 0,
+                            "preview": None,
+                            "author_name": att.get("author_name"),
+                            "text": att.get("text"),
+                            "message_link": att.get("message_link")
+                        })
+                    else:
+                        # Regular file/image attachment
+                        image_url = att.get("title_link") or att.get("image_url") or att.get("url")
+                        # Convert to full Rocket.Chat URLs
+                        if image_url and not image_url.startswith("http"):
+                            image_url = f"{rocket_url}{image_url if image_url.startswith('/') else '/' + image_url}"
+                        elif image_url and image_url.startswith("http"):
+                            # Already full URL, use as is
+                            pass
+                        
+                        # Add auth tokens to URL for secure access
+                        user_headers = await rocket_client.get_user_headers(
+                            social_hub_user_email=current_user.email,
+                            social_hub_user_name=current_user.full_name,
+                            social_hub_user_id=str(current_user.id),
+                            db_session=db
+                        )
+                        rc_token = user_headers.get('X-Auth-Token', '')
+                        rc_uid = user_headers.get('X-User-Id', '')
+                        if rc_token and rc_uid and image_url:
+                            image_url = f"{image_url}?rc_uid={rc_uid}&rc_token={rc_token}"
+                        
+                        attachments.append({
+                            "id": att.get("_id", ""),
+                            "title": att.get("title", ""),
+                            "filename": att.get("title") or att.get("filename", ""),
+                            "url": image_url,
+                            "type": att.get("image_type") or att.get("type", "application/octet-stream"),
+                            "size": att.get("image_size") or att.get("size") or 0,
+                            "preview": f"data:image/jpeg;base64,{att.get('image_preview')}" if att.get('image_preview') else None
+                        })
             
             # Determine if this message is from the current user
             current_user_username = current_user.email.split('@')[0]  # e.g., 'ankush15'
@@ -2119,53 +2264,71 @@ async def get_channel_messages_by_id(
                 for idx, att in enumerate(msg["attachments"]):
                     print(f"DEBUG: Attachment {idx}: {att}")
                     
-                    # Extract image URL from various possible fields
-                    image_url = att.get("title_link") or att.get("image_url") or att.get("image_preview") or att.get("url") or att.get("link")
-                    
-                    print(f"DEBUG: Extracted image_url: {image_url}")
-                    
-                    # Convert to full Rocket.Chat URLs
-                    rocket_url = os.getenv('ROCKET_CHAT_URL', 'http://10.68.0.49:30082')
-                    if image_url and not image_url.startswith("http"):
-                        # Convert to full Rocket.Chat URL
-                        image_url = f"{rocket_url}{image_url if image_url.startswith('/') else '/' + image_url}"
-                        print(f"DEBUG: Converted to full URL: {image_url}")
-                    elif image_url and image_url.startswith("http"):
-                        # Already full URL, use as is
-                        print(f"DEBUG: Using full URL as is: {image_url}")
-                    print(f"DEBUG: Final image_url: {image_url}")
-                    
-                    # Add auth tokens to URL for secure access
-                    user_headers = await rocket_client.get_user_headers(
-                        social_hub_user_email=current_user.email,
-                        social_hub_user_name=current_user.full_name,
-                        social_hub_user_id=str(current_user.id),
-                        db_session=db
-                    )
-                    rc_token = user_headers.get('X-Auth-Token', '')
-                    rc_uid = user_headers.get('X-User-Id', '')
-                    if rc_token and rc_uid and image_url:
-                        image_url = f"{image_url}?rc_uid={rc_uid}&rc_token={rc_token}"
-                        print(f"DEBUG: Added auth tokens to URL: {image_url[:80]}...")
-                    
-                    # Get file type and size - use image_type if available
-                    attachment_type = att.get("image_type") or att.get("type", "application/octet-stream")
-                    attachment_size = att.get("image_size") or att.get("size") or att.get("size_bytes") or att.get("sizeLength") or 0
-                    print(f"This is the image_URL sent from backend: {image_url}")
-                    # Check if we have a base64 preview
-                    image_preview = att.get("image_preview")
-                    attachment_data = {
-                        "id": att.get("_id", ""),
-                        "title": att.get("title", ""),
-                        "filename": att.get("title") or att.get("filename", ""),
-                        "url": image_url,
-                        "type": attachment_type,  # Use image_type to correctly identify images
-                        "size": attachment_size,
-                        "preview": f"data:image/jpeg;base64,{image_preview}" if image_preview else None
-                    }
-                    
-                    print(f"DEBUG: Attachment data: {attachment_data}")
-                    attachments.append(attachment_data)
+                    # Check if this is a forwarded message (has author_name and text fields)
+                    if att.get("author_name") and att.get("text"):
+                        # This is a forwarded message
+                        print(f"DEBUG: Detected forwarded message from {att.get('author_name')}")
+                        attachments.append({
+                            "id": att.get("_id", ""),
+                            "title": "",
+                            "filename": "",
+                            "url": None,
+                            "type": "forwarded_message",
+                            "size": 0,
+                            "preview": None,
+                            "author_name": att.get("author_name"),
+                            "text": att.get("text"),
+                            "message_link": att.get("message_link")
+                        })
+                    else:
+                        # Regular file/image attachment
+                        # Extract image URL from various possible fields
+                        image_url = att.get("title_link") or att.get("image_url") or att.get("image_preview") or att.get("url") or att.get("link")
+                        
+                        print(f"DEBUG: Extracted image_url: {image_url}")
+                        
+                        # Convert to full Rocket.Chat URLs
+                        rocket_url = os.getenv('ROCKET_CHAT_URL', 'http://10.68.0.49:30082')
+                        if image_url and not image_url.startswith("http"):
+                            # Convert to full Rocket.Chat URL
+                            image_url = f"{rocket_url}{image_url if image_url.startswith('/') else '/' + image_url}"
+                            print(f"DEBUG: Converted to full URL: {image_url}")
+                        elif image_url and image_url.startswith("http"):
+                            # Already full URL, use as is
+                            print(f"DEBUG: Using full URL as is: {image_url}")
+                        print(f"DEBUG: Final image_url: {image_url}")
+                        
+                        # Add auth tokens to URL for secure access
+                        user_headers = await rocket_client.get_user_headers(
+                            social_hub_user_email=current_user.email,
+                            social_hub_user_name=current_user.full_name,
+                            social_hub_user_id=str(current_user.id),
+                            db_session=db
+                        )
+                        rc_token = user_headers.get('X-Auth-Token', '')
+                        rc_uid = user_headers.get('X-User-Id', '')
+                        if rc_token and rc_uid and image_url:
+                            image_url = f"{image_url}?rc_uid={rc_uid}&rc_token={rc_token}"
+                            print(f"DEBUG: Added auth tokens to URL: {image_url[:80]}...")
+                        
+                        # Get file type and size - use image_type if available
+                        attachment_type = att.get("image_type") or att.get("type", "application/octet-stream")
+                        attachment_size = att.get("image_size") or att.get("size") or att.get("size_bytes") or att.get("sizeLength") or 0
+                        print(f"This is the image_URL sent from backend: {image_url}")
+                        # Check if we have a base64 preview
+                        image_preview = att.get("image_preview")
+                        attachment_data = {
+                            "id": att.get("_id", ""),
+                            "title": att.get("title", ""),
+                            "filename": att.get("title") or att.get("filename", ""),
+                            "url": image_url,
+                            "type": attachment_type,  # Use image_type to correctly identify images
+                            "size": attachment_size,
+                            "preview": f"data:image/jpeg;base64,{image_preview}" if image_preview else None
+                        }
+                        
+                        print(f"DEBUG: Attachment data: {attachment_data}")
+                        attachments.append(attachment_data)
             
             formatted_message = {
                 "id": msg.get("_id", f"msg-{i}"),

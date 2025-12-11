@@ -1045,6 +1045,83 @@ class RocketChatClient:
             print(f"Exception in send_thread_message: {e}")
             return {"success": False, "error": str(e)}
 
+    async def forward_message(self, message_id: str, target_room_id: str, user_headers: Dict = None) -> Dict:
+        """Forward a message to a channel/group/DM by copying it to target room"""
+        try:
+            print(f"DEBUG: Forwarding message {message_id} to room {target_room_id}")
+            
+            # Use user-specific headers if provided, otherwise use admin headers as fallback
+            headers = user_headers if user_headers else self.headers
+            
+            if user_headers:
+                print("✅ Using user-specific headers for forwarding")
+            else:
+                if not await self.ensure_authenticated():
+                    return {"success": False, "error": "Authentication failed"}
+                print("⚠️ Using admin headers for forwarding (fallback)")
+            
+            # Get the original message first
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Get message info
+                get_response = await client.get(
+                    f"{self.base_url}/api/v1/chat.getMessage?msgId={message_id}",
+                    headers=headers
+                )
+                
+                print(f"DEBUG: Get message status: {get_response.status_code}")
+                
+                if get_response.status_code != 200:
+                    print(f"❌ Failed to get message: {get_response.text}")
+                    return {"success": False, "error": "Failed to retrieve message"}
+                
+                message_info = get_response.json().get('message', {})
+                print(f"DEBUG: Original message: {message_info}")
+                
+                # Now forward using postMessage with attachment metadata
+                # This creates a forwarded message with original author info
+                forward_payload = {
+                    "text": f"*Forwarded message*",
+                    "attachments": [{
+                        "text": message_info.get('msg', ''),
+                        "author_name": f"{message_info.get('u', {}).get('username', 'Unknown')} (forwarded)",
+                        "type": "forwarded"
+                    }]
+                }
+                
+                print(f"DEBUG: Forwarding with payload: {forward_payload}")
+                
+                post_response = await client.post(
+                    f"{self.base_url}/api/v1/chat.postMessage",
+                    json={
+                        "roomId": target_room_id,
+                        **forward_payload
+                    },
+                    headers=headers
+                )
+                
+                print(f"DEBUG: Forward message response status: {post_response.status_code}")
+                print(f"DEBUG: Forward message response: {post_response.text}")
+                
+                if post_response.status_code == 200:
+                    result = post_response.json()
+                    print(f"DEBUG: Rocket.Chat forward result: {result}")
+                    if result.get('success'):
+                        return {"success": True, "message": "Message forwarded successfully"}
+                    else:
+                        error_msg = result.get('error', 'Unknown error')
+                        print(f"❌ Rocket.Chat error: {error_msg}")
+                        return {"success": False, "error": error_msg}
+                else:
+                    error_text = post_response.text
+                    print(f"❌ Rocket.Chat HTTP error {post_response.status_code}: {error_text}")
+                    return {"success": False, "error": f"HTTP {post_response.status_code}: {error_text}"}
+                    
+        except Exception as e:
+            print(f"Exception in forward_message: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+
     async def pin_message(self, message_id: str, user_headers: Dict = None) -> Dict:
         """Pin a message in a channel or group"""
         try:
@@ -1351,6 +1428,10 @@ class RocketChatClient:
         except Exception as e:
             print(f"Exception creating or getting DM room: {e}")
             return None
+
+    async def get_dm_room_id(self, username: str, user_headers: Dict = None) -> Optional[str]:
+        """Get DM room ID with a user (alias for create_or_get_dm_room)"""
+        return await self.create_or_get_dm_room(username, user_headers)
 
     async def check_dm_has_messages(self, username: str, user_headers: Dict = None) -> bool:
         """Check if there are any DM messages with a specific user by calling get_dm_messages"""
