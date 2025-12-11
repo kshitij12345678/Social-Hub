@@ -122,7 +122,7 @@ def get_user_groups(db: Session, user_id: int) -> List[Group]:
             .order_by(desc(Group.created_at))
             .all())
 
-def add_member_to_group(db: Session, group_id: int, user_id: int) -> Optional[GroupMember]:
+def add_member_to_group(db: Session, group_id: int, user_id: int, is_owner: bool = False) -> Optional[GroupMember]:
     """Add a user to a group"""
     # Check if user is already a member
     existing_member = db.query(GroupMember).filter(
@@ -135,7 +135,8 @@ def add_member_to_group(db: Session, group_id: int, user_id: int) -> Optional[Gr
     
     member = GroupMember(
         group_id=group_id,
-        user_id=user_id
+        user_id=user_id,
+        is_owner=is_owner
     )
     db.add(member)
     db.commit()
@@ -178,6 +179,24 @@ def is_user_in_group(db: Session, group_id: int, user_id: int) -> bool:
     member = db.query(GroupMember).filter(
         GroupMember.group_id == group_id,
         GroupMember.user_id == user_id
+    ).first()
+    return member is not None
+
+def is_user_owner_or_creator(db: Session, group_id: int, user_id: int) -> bool:
+    """Check if user is the creator or an owner of the group"""
+    group = db.query(Group).filter(Group.id == group_id).first()
+    if not group:
+        return False
+    
+    # Check if user is the creator
+    if group.created_by == user_id:
+        return True
+    
+    # Check if user is an owner
+    member = db.query(GroupMember).filter(
+        GroupMember.group_id == group_id,
+        GroupMember.user_id == user_id,
+        GroupMember.is_owner == True
     ).first()
     return member is not None
 

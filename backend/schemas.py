@@ -112,6 +112,7 @@ class GroupMemberResponse(BaseModel):
     user_id: int
     joined_at: datetime
     user: UserResponse
+    is_owner: bool = False
     
     class Config:
         from_attributes = True

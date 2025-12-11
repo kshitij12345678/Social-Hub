@@ -15,7 +15,7 @@ from google.auth.transport import requests
 
 from database import get_db, create_tables, User, ChatMessage, Group, GroupMember, PinnedMessage
 from schemas import UserRegistration, UserLogin, UserResponse, Token, Message, GoogleAuthRequest, UserProfileUpdate, ChatMessageCreate, ChatMessageResponse, GroupCreate, GroupUpdate, GroupMemberAdd, GroupMemberRemove, GroupResponse, GroupMemberResponse, UserSearchResponse
-from crud import create_user, authenticate_user, get_user_by_email, get_user_by_id, create_google_user, get_user_by_google_id, create_chat_message, get_recent_chat_messages, create_group, get_group_by_id, get_user_groups, add_member_to_group, remove_member_from_group, get_group_members, search_users, is_user_in_group, update_group, delete_group
+from crud import create_user, authenticate_user, get_user_by_email, get_user_by_id, create_google_user, get_user_by_google_id, create_chat_message, get_recent_chat_messages, create_group, get_group_by_id, get_user_groups, add_member_to_group, remove_member_from_group, get_group_members, search_users, is_user_in_group, is_user_owner_or_creator, update_group, delete_group
 from auth import create_access_token, verify_token, ACCESS_TOKEN_EXPIRE_MINUTES
 from rocket_chat_local import rocket_client
 
@@ -2057,12 +2057,13 @@ async def get_channel_messages_by_id(
             
             # Check if this is a system event (like "user joined")
             event_type = msg.get("t")
-            is_system_event = event_type and event_type in ["uj", "ul", "r", "au", "ru"]  # user_joined, user_left, room_changed, user_added, user_removed
+            is_system_event = event_type and event_type in ["subscription-role-added", "uj", "ul", "r", "au", "ru"]  # user_joined, user_left, room_changed, user_added, user_removed
             
             # Get message text - handle system events differently
             message_text = msg.get("msg", "")
             
             # Generate custom messages for system events
+            print(f"event type is: {event_type}")
             if is_system_event and message_text:
                 print(f"🔄 DEBUG: Processing system event '{event_type}' for message '{message_text}'")
                 if event_type == "uj":
@@ -2070,12 +2071,38 @@ async def get_channel_messages_by_id(
                 elif event_type == "ul":
                     message_text = f"{message_text} left the channel"
                 elif event_type == "r":
-                    message_text = f"Room changed"
+                    message_text = f"{msg.get('u', {}).get('username', 'Someone')} changed the room name to {message_text}"
                 elif event_type == "au":
                     message_text = f"{message_text} was added"
                 elif event_type == "ru":
                     message_text = f"{message_text} was removed"
+                elif event_type == "subscription-role-added":
+                    message_text = f"{message_text} is now an owner of the group"
+
                 print(f"DEBUG: Generated custom message: '{message_text}'")
+            
+            # Handle owner promotion API call for subscription-role-added events
+            if event_type == "subscription-role-added" and message_text:
+                try:
+                    # Extract username from the message (message_text contains the username)
+                    username = message_text.split(' ')[0]  # Get first word (the username)
+                    
+                    print(f"DEBUG: Promoting user '{username}' to owner in group '{channel_identifier}'")
+                    
+                    # Call Rocket.Chat API to add owner role
+                    owner_result = await rocket_client.add_owner_to_group(
+                        group_id=channel_identifier,
+                        username=username,
+                        user_headers=user_headers
+                    )
+                    
+                    if owner_result.get('success'):
+                        print(f"✅ Successfully promoted '{username}' to owner in Rocket.Chat")
+                    else:
+                        print(f"⚠️ Failed to promote '{username}' to owner: {owner_result.get('error', 'Unknown error')}")
+                        
+                except Exception as e:
+                    print(f"Exception during owner promotion: {e}")
             
             # If msg is still empty and it's a system event, check attachments for the text
             if not message_text and is_system_event and msg.get("attachments"):
@@ -2826,6 +2853,22 @@ async def create_group_endpoint(
         else:
             print(f"Successfully added creator '{creator_username}' to Rocket.Chat group")
         
+        # Promote the creator to owner in Rocket.Chat so they can promote others later
+        add_owner_result = await rocket_client.add_owner_to_group(
+            group_id=rocket_group_id,
+            username=creator_username,
+            user_headers=user_headers
+        )
+        
+        if not add_owner_result.get('success'):
+            print(f"Warning: Failed to set creator as owner in Rocket.Chat group: {add_owner_result.get('error', 'Unknown error')}")
+        else:
+            print(f"Successfully set creator '{creator_username}' as owner in Rocket.Chat group")
+        
+        # Add creator to group in database as owner
+        add_member_to_group(db, group.id, current_user.id, is_owner=True)
+        print(f"Added creator '{current_user.email}' to group database as owner")
+        
         # Add initial members to database
         if group_data.member_emails:
             for email in group_data.member_emails:
@@ -3100,6 +3143,10 @@ async def add_member_to_group_endpoint(
         if not is_user_in_group(db, group_id, current_user.id):
             raise HTTPException(status_code=403, detail="Access denied: You are not a member of this group")
         
+        # Check if current user is the creator or an owner
+        if not is_user_owner_or_creator(db, group_id, current_user.id):
+            raise HTTPException(status_code=403, detail="Only the creator and owners can add/remove members from the group")
+        
         # Find the user to add
         user_to_add = get_user_by_email(db, member_data.user_email)
         if not user_to_add:
@@ -3161,9 +3208,9 @@ async def remove_member_from_group_endpoint(
         if not group:
             raise HTTPException(status_code=404, detail="Group not found")
         
-        # Check if current user is the creator or the member being removed
-        if group.created_by != current_user.id and current_user.id != user_id:
-            raise HTTPException(status_code=403, detail="Access denied: Only the group creator or the member themselves can remove members")
+        # Check if current user is the creator or an owner
+        if not is_user_owner_or_creator(db, group_id, current_user.id):
+            raise HTTPException(status_code=403, detail="Only the creator and owners can add/remove members from the group")
         
         # Check if the user is actually a member
         if not is_user_in_group(db, group_id, user_id):
@@ -3222,6 +3269,107 @@ async def remove_member_from_group_endpoint(
         print(f"❌ Error removing member: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to remove member: {str(e)}")
 
+@app.post("/groups/{group_id}/members/{member_id}/set-owner")
+async def set_member_as_owner(
+    group_id: int,
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Set a group member as owner (group creator only)"""
+    try:
+        print(f"\n🔐 SET OWNER REQUEST: group_id={group_id}, member_id={member_id}, current_user={current_user.email}")
+        
+        group = get_group_by_id(db, group_id)
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        print(f"✅ Group found: {group.name} (creator_id: {group.created_by})")
+        
+        # Only creator can set owners
+        if group.created_by != current_user.id:
+            print(f"❌ User {current_user.id} is not the creator ({group.created_by})")
+            raise HTTPException(status_code=403, detail="Access denied: Only the group creator can set owners")
+        
+        # Get the group member
+        member = db.query(GroupMember).filter(
+            GroupMember.id == member_id,
+            GroupMember.group_id == group_id
+        ).first()
+        
+        if not member:
+            print(f"❌ Member {member_id} not found in group {group_id}")
+            raise HTTPException(status_code=404, detail="Member not found in this group")
+        
+        print(f"✅ Member found: user_id={member.user_id}, current_is_owner={member.is_owner}")
+        
+        # Can't set creator as owner again
+        if member.user_id == group.created_by:
+            raise HTTPException(status_code=400, detail="Creator is already the primary owner")
+        
+        # Get the user
+        user_to_promote = get_user_by_id(db, member.user_id)
+        if not user_to_promote:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        print(f"🔄 Promoting {user_to_promote.email} to owner in group {group.rocket_chat_group_id}")
+        
+        # If the group has a Rocket.Chat group ID, promote to owner in Rocket.Chat first
+        if group.rocket_chat_group_id:
+            print(f"🔄 Promoting user to owner in Rocket.Chat. Group ID: {group.rocket_chat_group_id}, User: {user_to_promote.email}")
+            
+            # Get user-specific headers for Rocket.Chat API calls
+            user_headers = await rocket_client.get_user_headers(
+                social_hub_user_email=current_user.email,
+                social_hub_user_name=current_user.full_name,
+                social_hub_user_id=str(current_user.id),
+                db_session=db
+            )
+            
+            # Get the Rocket.Chat username
+            rocket_username = user_to_promote.email.split('@')[0]
+            
+            print(f"📋 Calling add_owner_to_group with username: {rocket_username}")
+            
+            # Add as owner in Rocket.Chat
+            owner_result = await rocket_client.add_owner_to_group(
+                group_id=group.rocket_chat_group_id,
+                username=rocket_username,
+                user_headers=user_headers
+            )
+            
+            print(f"🚀 Rocket.Chat response: {owner_result}")
+            
+            if owner_result.get('success'):
+                print(f"✅ Successfully promoted user to owner in Rocket.Chat")
+            else:
+                error_msg = owner_result.get('error', 'Unknown error')
+                print(f"⚠️ Warning: Failed to promote user to owner in Rocket.Chat: {error_msg}")
+                # Continue with local promotion even if Rocket.Chat fails
+        else:
+            print(f"ℹ️ Group has no Rocket.Chat ID, skipping Rocket.Chat promotion")
+        
+        # Update local database
+        print(f"💾 Updating database: member.is_owner = True")
+        print(f"DEBUG: Current member.is_owner value before update: {member.is_owner}")
+        member.is_owner = True
+        db.add(member)  # Explicitly add the object to the session
+        db.commit()
+        db.refresh(member)  # Refresh to get the updated value from database
+        print(f"DEBUG: Member.is_owner value after update and refresh: {member.is_owner}")
+        
+        # Verify the update in database
+        verify_member = db.query(GroupMember).filter(GroupMember.id == member_id).first()
+        print(f"✅ Verified in DB: member.is_owner = {verify_member.is_owner if verify_member else 'NOT FOUND'}")
+        
+        print(f"✅ Successfully promoted user to owner in local database")
+        return {"message": "Member promoted to owner successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error setting member as owner: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to set member as owner: {str(e)}")
+
 @app.get("/groups/{group_id}/members", response_model=List[GroupMemberResponse])
 def get_group_members_endpoint(
     group_id: int,
@@ -3245,7 +3393,8 @@ def get_group_members_endpoint(
                 group_id=member.group_id,
                 user_id=member.user_id,
                 joined_at=member.joined_at,
-                user=UserResponse.from_orm(member.user)
+                user=UserResponse.from_orm(member.user),
+                is_owner=member.is_owner
             )
             for member in members
         ]

@@ -7,9 +7,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Plus, Users, Search, Trash2, UserPlus, ArrowLeft, MessageCircle, Edit, UserMinus } from 'lucide-react';
+import { Plus, Users, Search, Trash2, UserPlus, ArrowLeft, MessageCircle, Edit, UserMinus, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '@/contexts/AuthContext';
 import ResponsiveLayout from '@/components/layout/responsive-layout';
 
 // Set the page title
@@ -28,6 +29,7 @@ interface GroupMember {
   user_id: number;
   joined_at: string;
   user: User;
+  is_owner?: boolean;
 }
 
 interface Group {
@@ -58,6 +60,7 @@ const Groups: React.FC = () => {
   const [editGroup, setEditGroup] = useState({ name: '', description: '' });
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   // Load groups on component mount
   useEffect(() => {
@@ -302,6 +305,44 @@ const Groups: React.FC = () => {
     }
   };
 
+  const leaveGroup = async (groupId: number) => {
+    if (!user) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/groups/${groupId}/members/${user.id}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "You have left the group",
+        });
+        setGroups(groups.filter(g => g.id !== groupId));
+        setSelectedGroup(null);
+      } else {
+        const error = await response.json();
+        toast({
+          title: "Error",
+          description: error.detail || "Failed to leave group",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error leaving group:', error);
+      toast({
+        title: "Error",
+        description: "Failed to leave group",
+        variant: "destructive",
+      });
+    }
+  };
+
   const updateGroup = async () => {
     if (!selectedGroup) return;
 
@@ -425,6 +466,55 @@ const Groups: React.FC = () => {
       toast({
         title: "Error",
         description: "Failed to remove member",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const setMemberAsOwner = async (memberId: number, memberUserId: number) => {
+    if (!selectedGroup) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}/members/${memberId}/set-owner`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Set owner response:', result);
+        
+        // Update the member in state immediately
+        const updatedMembers = groupMembers.map((member) =>
+          member.id === memberId ? { ...member, is_owner: true } : member
+        );
+        setGroupMembers(updatedMembers);
+        
+        toast({
+          title: "Success",
+          description: "Member promoted to owner successfully",
+        });
+        
+        // Reload groups to sync up-to-date data
+        loadGroups();
+      } else {
+        const error = await response.json();
+        console.error('❌ Set owner error:', error);
+        toast({
+          title: "Error",
+          description: error.detail || "Failed to set member as owner",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error setting member as owner:', error);
+      toast({
+        title: "Error",
+        description: "Failed to set member as owner",
         variant: "destructive",
       });
     }
@@ -677,6 +767,17 @@ const Groups: React.FC = () => {
                       <Trash2 className="w-4 h-4 mr-1" />
                       Delete
                     </Button>
+                    {group.created_by !== parseInt(user?.id || '0') && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => leaveGroup(group.id)}
+                        className="text-red-600 border-red-600 hover:bg-red-50"
+                      >
+                        <LogOut className="w-4 h-4 mr-1" />
+                        Leave
+                      </Button>
+                    )}
                   </div>
                 </div>
               </CardContent>
@@ -792,7 +893,7 @@ const Groups: React.FC = () => {
 
       {/* Manage Members Dialog */}
       <Dialog open={showManageMembersDialog} onOpenChange={setShowManageMembersDialog}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-2xl">
           <DialogHeader>
             <DialogTitle>Manage Members - {selectedGroup?.name}</DialogTitle>
             <DialogDescription>
@@ -813,33 +914,64 @@ const Groups: React.FC = () => {
                 {groupMembers.map((member) => (
                   <div
                     key={member.id}
-                    className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/50"
+                    className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 p-3 border rounded-lg hover:bg-muted/50"
                   >
-                    <div className="flex items-center space-x-3">
-                      <Avatar className="w-10 h-10">
+                    <div className="flex items-center space-x-3 min-w-0">
+                      <Avatar className="w-10 h-10 flex-shrink-0">
                         <AvatarImage src={member.user.profile_picture_url} />
                         <AvatarFallback>
                           {member.user.full_name.charAt(0).toUpperCase()}
                         </AvatarFallback>
                       </Avatar>
-                      <div>
-                        <p className="font-medium">{member.user.full_name}</p>
-                        <p className="text-sm text-muted-foreground">{member.user.email}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium truncate">{member.user.full_name}</p>
+                        <p className="text-sm text-muted-foreground truncate">{member.user.email}</p>
                       </div>
                     </div>
-                    {selectedGroup?.created_by !== member.user_id && (
-                      <Button
-                        size="sm"
-                        variant="destructive"
-                        onClick={() => removeMemberFromGroup(member.user_id)}
-                      >
-                        <UserMinus className="w-4 h-4 mr-1" />
-                        Remove
-                      </Button>
-                    )}
-                    {selectedGroup?.created_by === member.user_id && (
-                      <Badge variant="secondary">Creator</Badge>
-                    )}
+                    <div className="flex flex-wrap items-center gap-2 justify-end">
+                      {selectedGroup?.created_by === member.user_id && (
+                        <Badge variant="secondary" className="bg-green-100 text-green-800 flex-shrink-0">Creator</Badge>
+                      )}
+                      {member.is_owner && selectedGroup?.created_by !== member.user_id && (
+                        <Badge variant="secondary" className="bg-blue-100 text-blue-800 flex-shrink-0">Owner</Badge>
+                      )}
+                      {selectedGroup?.created_by === member.user_id ? (
+                        // Creator - no actions
+                        <div />
+                      ) : member.is_owner ? (
+                        // Owner - show remove owner button
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => removeMemberFromGroup(member.user_id)}
+                          className="flex-shrink-0"
+                        >
+                          <UserMinus className="w-4 h-4 mr-1" />
+                          Remove
+                        </Button>
+                      ) : (
+                        // Regular member - show Set Owner and Remove buttons
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => setMemberAsOwner(member.id, member.user_id)}
+                            className="text-blue-600 border-blue-600 hover:bg-blue-50 flex-shrink-0"
+                          >
+                            Set Owner
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => removeMemberFromGroup(member.user_id)}
+                            className="flex-shrink-0"
+                          >
+                            <UserMinus className="w-4 h-4 mr-1" />
+                            Remove
+                          </Button>
+                        </div>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>

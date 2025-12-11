@@ -549,6 +549,47 @@ class RocketChatClient:
             print(f"Exception adding member to group: {e}")
             return {"success": False, "error": str(e)}
 
+    async def add_owner_to_group(self, group_id: str, username: str, user_headers: Dict = None) -> Dict:
+        """Add/promote a user as owner of a Rocket.Chat group"""
+        try:
+            if not user_headers:
+                print("❌ User headers required for promoting members to owner in groups")
+                return {"success": False, "error": "User authentication required"}
+            
+            owner_data = {
+                "roomId": group_id,
+                "username": username
+            }
+            
+            print(f"Adding owner '{username}' to group '{group_id}'")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/groups.addOwner",
+                    headers=user_headers,
+                    json=owner_data
+                )
+                
+                print(f"Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success'):
+                        print(f"✅ Successfully promoted user '{username}' to owner in group")
+                        return {"success": True, "group": result.get('group', {})}
+                    else:
+                        error_msg = result.get('error', 'Unknown error')
+                        print(f"❌ Failed to add owner: {error_msg}")
+                        return {"success": False, "error": error_msg}
+                else:
+                    error_text = response.text
+                    print(f"❌ Failed to add owner - HTTP {response.status_code}: {error_text}")
+                    return {"success": False, "error": f"HTTP {response.status_code}: {error_text}"}
+                    
+        except Exception as e:
+            print(f"Exception adding owner to group: {e}")
+            return {"success": False, "error": str(e)}
+
     async def send_message_to_channel(self, channel_name: str, text: str, user_headers: Dict = None, attachments: List[Dict] = None, channel_type: str = "channel") -> Dict:
         """Send message to a channel or group with optional file attachments"""
         try:
@@ -1669,7 +1710,7 @@ class RocketChatClient:
     async def rename_group(self, group_id: str, new_name: str, user_headers: Dict = None) -> Dict:
         """Rename a group in Rocket.Chat"""
         try:
-            print(f"✏️ Renaming group {group_id} to '{new_name}' in Rocket.Chat")
+            print(f"Renaming group {group_id} to '{new_name}' in Rocket.Chat")
             
             # Convert group name to valid Rocket.Chat format (same as creation)
             valid_name = new_name.lower().replace(' ', '-').replace('_', '-')
@@ -1702,17 +1743,17 @@ class RocketChatClient:
                     result = response.json()
                     if result.get('success'):
                         group_info = result.get('group', {})
-                        print(f"✅ Successfully renamed group to '{valid_name}'")
+                        print(f"Successfully renamed group to '{valid_name}'")
                         return {
                             "success": True,
                             "group": group_info,
                             "new_name": group_info.get('name')
                         }
                     else:
-                        print(f"❌ Failed to rename group: {result.get('error', 'Unknown error')}")
+                        print(f"Failed to rename group: {result.get('error', 'Unknown error')}")
                         return {"success": False, "error": result.get('error', 'Unknown error')}
                 else:
-                    print(f"❌ Failed to rename group - HTTP {response.status_code}: {response.text}")
+                    print(f"Failed to rename group - HTTP {response.status_code}: {response.text}")
                     return {"success": False, "error": f"HTTP {response.status_code}: {response.text}"}
                     
         except Exception as e:

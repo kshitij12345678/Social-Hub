@@ -95,6 +95,7 @@ class GroupMember(Base):
     group_id = Column(Integer, ForeignKey("groups.id"), nullable=False)
     user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
     joined_at = Column(DateTime, default=datetime.utcnow)
+    is_owner = Column(Boolean, default=False)  # Track if this member is an owner
     
     # Relationships
     group = relationship("Group", back_populates="members")
