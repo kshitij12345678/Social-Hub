@@ -12,6 +12,9 @@ import { useToast } from '@/hooks/use-toast';
 import { Hash, Lock, MessageCircle, Users, User, Search, Send, Smile, Reply, Paperclip, Image, File, Mic, Video, MoreHorizontal, UserPlus, Pin, Trash2, Phone, Share2, Edit } from 'lucide-react';
 import { UserSearch } from './UserSearch';
 import { UserSearchResult } from '@/services/api';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkBreaks from 'remark-breaks';
 
 // Helper function to format message timestamp
 const formatMessageTime = (timestamp: string) => {
@@ -124,6 +127,54 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
+
+  // Helper function to render text with clickable links
+  const renderMessageContent = (text: string): React.ReactNode => {
+    if (!text) return text;
+    
+    // Custom components for markdown rendering
+    const components = {
+      p: ({ children }: any) => <p className="mb-2 text-black dark:text-white">{children}</p>,
+      h1: ({ children }: any) => <h1 className="text-2xl font-bold mb-2 mt-3 text-black dark:text-white">{children}</h1>,
+      h2: ({ children }: any) => <h2 className="text-xl font-bold mb-2 mt-2 text-black dark:text-white">{children}</h2>,
+      h3: ({ children }: any) => <h3 className="text-lg font-bold mb-2 mt-2 text-black dark:text-white">{children}</h3>,
+      h4: ({ children }: any) => <h4 className="font-bold mb-1 mt-1 text-black dark:text-white">{children}</h4>,
+      strong: ({ children }: any) => <strong className="font-bold text-black dark:text-white">{children}</strong>,
+      em: ({ children }: any) => <em className="italic text-black dark:text-white">{children}</em>,
+      code: ({ inline, children }: any) => 
+        inline 
+          ? <code className="bg-gray-700 text-white px-2 py-1 rounded text-sm font-mono whitespace-pre-wrap border border-gray-600">{children}</code>
+          : <code className="block bg-gray-700 text-white p-3 rounded text-sm font-mono overflow-x-auto mb-2 border border-gray-600 whitespace-pre-wrap">{children}</code>,
+      pre: ({ children }: any) => <pre className="bg-gray-700 text-white p-3 rounded mb-2 overflow-x-auto text-sm border border-gray-600 whitespace-pre-wrap">{children}</pre>,
+      blockquote: ({ children }: any) => <blockquote className="border-l-4 border-blue-400 pl-3 italic my-2 text-black dark:text-white bg-gray-800 py-2 px-2">{children}</blockquote>,
+      ul: ({ children }: any) => <ul className="list-disc list-inside mb-2 space-y-1 text-black dark:text-white">{children}</ul>,
+      ol: ({ children }: any) => <ol className="list-decimal list-inside mb-2 space-y-1 text-black dark:text-white">{children}</ol>,
+      li: ({ children }: any) => <li className="ml-2 text-black dark:text-white">{children}</li>,
+      a: ({ href, children }: any) => (
+        <a 
+          href={href}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline break-all"
+        >
+          {children}
+        </a>
+      ),
+      hr: () => <hr className="my-3 border-gray-500" />
+    };
+    
+    return (
+      <div className="max-w-none text-black dark:text-white">
+        <ReactMarkdown 
+          remarkPlugins={[remarkGfm, remarkBreaks]}
+          components={components}
+        >
+          {text}
+        </ReactMarkdown>
+      </div>
+    );
+  };
+
 
   // Save selected conversation to localStorage
   const saveSelectedConversation = (conversation: ChatConversation | null) => {
@@ -697,6 +748,30 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
         // If the error message is empty or just "Failed to send message:", try to get more details
         if (errorMessage === 'Failed to send message:' || errorMessage === 'Failed to send message') {
           errorMessage = 'Failed to send message. Please check your connection and try again.';
+        }
+      }
+      
+      // If error message is still empty or contains "Empty error message", retry fetching messages
+      // as the message might have been sent successfully despite the error response
+      if (!errorMessage || errorMessage.includes('Empty error message')) {
+        console.log('Detected possible successful send with error response, attempting to refresh messages...');
+        try {
+          // Wait a moment then refresh messages
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          if (selectedConversation) {
+            const refreshedMessages = await rocketChatService.getRocketChatChannelMessages(
+              selectedConversation.id || selectedConversation.name || '',
+              selectedConversation.type === 'private_group' ? 'group' : 'channel'
+            );
+            setMessages(refreshedMessages);
+            toast({
+              title: "Success",
+              description: "Message sent successfully",
+            });
+            return; // Exit without showing error
+          }
+        } catch (refreshError) {
+          console.error('Failed to refresh messages:', refreshError);
         }
       }
       
@@ -1620,7 +1695,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                       <p className="text-sm">{message.attachments[0].text}</p>
                                     </div>
                                   ) : (
-                                    <p className="text-sm">{message.text || message.content}</p>
+                                    <div className="text-sm">{renderMessageContent(message.text || message.content)}</div>
                                   )}
                                   
                                   {/* File Attachments Display */}
@@ -2202,7 +2277,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 <p className="text-sm">{threadMsg.attachments[0].text}</p>
                                               </div>
                                             ) : (
-                                              <p className="text-sm">{threadMsg.text || threadMsg.content}</p>
+                                              <div className="text-sm">{renderMessageContent(threadMsg.text || threadMsg.content)}</div>
                                             )}
                                             
                                             <div className="text-xs opacity-70 mt-1 flex items-center gap-1">

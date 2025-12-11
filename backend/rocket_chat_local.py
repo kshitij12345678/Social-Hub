@@ -680,29 +680,44 @@ class RocketChatClient:
                 "text": text
             }
 
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.base_url}/api/v1/chat.postMessage",
-                    json=message_data,
-                    headers=headers
-                )
-                
-                print(f"DEBUG: Rocket.Chat postMessage response status: {response.status_code}")
-                print(f"DEBUG: Rocket.Chat postMessage response text: {response.text}")
-                
-                if response.status_code == 200:
-                    result = response.json()
-                    print(f"DEBUG: Rocket.Chat response: {result}")
-                    if result.get('success'):
-                        return {"success": True, "message": result.get('message')}
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                try:
+                    response = await client.post(
+                        f"{self.base_url}/api/v1/chat.postMessage",
+                        json=message_data,
+                        headers=headers
+                    )
+                    
+                    print(f"DEBUG: Rocket.Chat postMessage response status: {response.status_code}")
+                    print(f"DEBUG: Rocket.Chat postMessage response text: {response.text}")
+                    
+                    if response.status_code == 200:
+                        result = response.json()
+                        print(f"DEBUG: Rocket.Chat response: {result}")
+                        if result.get('success'):
+                            return {"success": True, "message": result.get('message', 'Message sent successfully')}
+                        else:
+                            error_msg = result.get('error')
+                            # If error is empty or None, message might still be sent successfully
+                            if not error_msg:
+                                # Check if message was actually created
+                                if result.get('ts') or result.get('_id'):
+                                    print(f"✅ Message sent successfully despite empty error field")
+                                    return {"success": True, "message": "Message sent successfully"}
+                                error_msg = result.get('errorType') or result.get('reason') or 'Unknown error'
+                            print(f"❌ Rocket.Chat error: '{error_msg}' (type: {type(error_msg)})")
+                            print(f"❌ Full response: {result}")
+                            return {"success": False, "error": error_msg if error_msg else "Failed to send message"}
                     else:
-                        error_msg = result.get('error', 'Unknown error')
-                        print(f"❌ Rocket.Chat error: '{error_msg}' (type: {type(error_msg)})")
-                        return {"success": False, "error": error_msg}
-                else:
-                    error_text = response.text
-                    print(f"❌ Rocket.Chat HTTP error {response.status_code}: {error_text}")
-                    return {"success": False, "error": f"HTTP {response.status_code}: {error_text}"}
+                        error_text = response.text
+                        print(f"❌ Rocket.Chat HTTP error {response.status_code}: {error_text}")
+                        return {"success": False, "error": f"HTTP {response.status_code}: {error_text}"}
+                except httpx.TimeoutException as te:
+                    print(f"❌ Request timeout: {te}")
+                    return {"success": False, "error": f"Request timeout: {str(te)}"}
+                except Exception as e:
+                    print(f"❌ Error posting message: {e}")
+                    return {"success": False, "error": f"Error: {str(e)}"}
                     
         except Exception as e:
             return {"success": False, "error": str(e)}
