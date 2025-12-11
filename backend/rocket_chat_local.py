@@ -1130,6 +1130,83 @@ class RocketChatClient:
             traceback.print_exc()
             return {"success": False, "error": str(e)}
 
+    async def edit_message(self, message_id: str, new_text: str, user_headers: Dict = None) -> Dict:
+        """Edit a message (only own messages)"""
+        try:
+            print(f"DEBUG: Editing message with ID: {message_id}")
+            print(f"DEBUG: New text: {new_text}")
+            
+            # Use user-specific headers if provided, otherwise use admin headers as fallback
+            headers = user_headers if user_headers else self.headers
+            
+            if user_headers:
+                print("✅ Using user-specific headers for editing")
+            else:
+                if not await self.ensure_authenticated():
+                    return {"success": False, "error": "Authentication failed"}
+                print("⚠️ Using admin headers for editing (fallback)")
+            
+            # First, get the message to find its room ID
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                # Get message info to extract roomId
+                get_response = await client.get(
+                    f"{self.base_url}/api/v1/chat.getMessage?msgId={message_id}",
+                    headers=headers
+                )
+                
+                print(f"DEBUG: Get message status: {get_response.status_code}")
+                
+                if get_response.status_code != 200:
+                    print(f"❌ Failed to get message: {get_response.text}")
+                    return {"success": False, "error": "Failed to retrieve message"}
+                
+                message_info = get_response.json().get('message', {})
+                room_id = message_info.get('rid', '')
+                
+                if not room_id:
+                    print(f"❌ Could not find room ID for message")
+                    return {"success": False, "error": "Could not find room ID for message"}
+                
+                print(f"DEBUG: Found room ID: {room_id}")
+                
+                # Now update the message with the room ID
+                message_data = {
+                    "msgId": message_id,
+                    "text": new_text,
+                    "roomId": room_id
+                }
+                
+                print(f"DEBUG: Editing with data: {message_data}")
+                
+                response = await client.post(
+                    f"{self.base_url}/api/v1/chat.update",
+                    json=message_data,
+                    headers=headers
+                )
+                
+                print(f"DEBUG: Edit message response status: {response.status_code}")
+                print(f"DEBUG: Edit message response: {response.text}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    print(f"DEBUG: Rocket.Chat edit result: {result}")
+                    if result.get('success'):
+                        return {"success": True, "message": "Message edited successfully"}
+                    else:
+                        error_msg = result.get('error', 'Unknown error')
+                        print(f"❌ Rocket.Chat error: {error_msg}")
+                        return {"success": False, "error": error_msg}
+                else:
+                    error_text = response.text
+                    print(f"❌ Rocket.Chat HTTP error {response.status_code}: {error_text}")
+                    return {"success": False, "error": f"HTTP {response.status_code}: {error_text}"}
+                    
+        except Exception as e:
+            print(f"Exception in edit_message: {e}")
+            import traceback
+            traceback.print_exc()
+            return {"success": False, "error": str(e)}
+
     async def pin_message(self, message_id: str, user_headers: Dict = None) -> Dict:
         """Pin a message in a channel or group"""
         try:

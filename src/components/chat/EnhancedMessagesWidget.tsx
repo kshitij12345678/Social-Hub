@@ -9,7 +9,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { type ChatConversation, type ChatMessage } from '@/services/chat';
 import { chatService as rocketChatService } from '@/services/chat';
 import { useToast } from '@/hooks/use-toast';
-import { Hash, Lock, MessageCircle, Users, User, Search, Send, Smile, Reply, Paperclip, Image, File, Mic, Video, MoreHorizontal, UserPlus, Pin, Trash2, Phone, Share2 } from 'lucide-react';
+import { Hash, Lock, MessageCircle, Users, User, Search, Send, Smile, Reply, Paperclip, Image, File, Mic, Video, MoreHorizontal, UserPlus, Pin, Trash2, Phone, Share2, Edit } from 'lucide-react';
 import { UserSearch } from './UserSearch';
 import { UserSearchResult } from '@/services/api';
 
@@ -110,6 +110,12 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
   const [forwardSearchResults, setForwardSearchResults] = useState<ChatConversation[]>([]);
   const [forwardingTo, setForwardingTo] = useState<ChatConversation | null>(null);
   const [isForwarding, setIsForwarding] = useState(false);
+  
+  // Edit message state
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
+  const [editingMessageText, setEditingMessageText] = useState('');
+  const [isEditing, setIsEditing] = useState(false);
   
   const { isAuthenticated, user, isLoading: authLoading } = useAuth();
   const { toast } = useToast();
@@ -1637,8 +1643,9 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                     </div>
                                   )}
                                   
-                                  <div className="text-xs opacity-70 mt-1">
+                                  <div className="text-xs opacity-70 mt-1 flex items-center gap-1">
                                     {formatMessageTime(message.timestamp)}
+                                    {message.edited_at && <span className="text-gray-500 italic">edited</span>}
                                   </div>
                                   
                                   {/* Reactions Display */}
@@ -1907,6 +1914,21 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                           <Share2 className="h-4 w-4" />
                                         </button>
                                         
+                                        {/* Edit button (only show for own messages) */}
+                                        {isOwnMessage && !isSystemMessage && (
+                                          <button
+                                            onClick={() => {
+                                              setEditingMessageId(message.id);
+                                              setEditingMessageText(message.text || message.content || '');
+                                              setShowEditDialog(true);
+                                            }}
+                                            className="flex items-center justify-center w-6 h-6 rounded-full transition-colors bg-gray-100 hover:bg-gray-200 text-gray-600"
+                                            title="Edit message"
+                                          >
+                                            <Edit className="h-4 w-4" />
+                                          </button>
+                                        )}
+                                        
                                         {/* Delete button */}
                                         <button
                                           onClick={async () => {
@@ -2058,16 +2080,12 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                     });
                                     
                                     return allMsgs.map((threadMsg) => {
-                                    // Determine if this thread message is from the current user
-                                    const currentUserUsername = user?.email?.split('@')[0];
-                                    const threadMsgUsername = threadMsg.user?.username || '';
-                                    
-                                    // Check isOwn flag first, then fallback to username comparison (for DMs)
-                                    const isOwnThreadMessage = threadMsg.isOwn === true || threadMsgUsername === currentUserUsername;
+                                    // Check isOwn flag from backend (it's already calculated correctly)
+                                    const isOwnThreadMessage = threadMsg.isOwn === true;
                                     
                                     return (
-                                      <div key={threadMsg.id} className="ml-6 border-l-2 border-muted pl-4">
-                                        <div className={`flex ${isOwnThreadMessage ? 'justify-end' : 'justify-start'}`}>
+                                      <div key={threadMsg.id} className="ml-6 border-l-2 border-muted pl-4 group">
+                                        <div className={`flex ${isOwnThreadMessage ? 'justify-end' : 'justify-start'} gap-2`}>
                                           <div className={`max-w-xs lg:max-w-md px-4 py-2 rounded-lg ${
                                             isOwnThreadMessage
                                               ? 'bg-primary text-primary-foreground ml-auto'
@@ -2091,10 +2109,29 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                               <p className="text-sm">{threadMsg.text || threadMsg.content}</p>
                                             )}
                                             
-                                            <div className="text-xs opacity-70 mt-1">
+                                            <div className="text-xs opacity-70 mt-1 flex items-center gap-1">
                                               {formatMessageTime(threadMsg.timestamp)}
+                                              {threadMsg.edited_at && <span className="text-gray-500 italic">edited</span>}
                                             </div>
                                           </div>
+                                          
+                                          {/* Thread message action buttons - show on hover */}
+                                          {isOwnThreadMessage && (
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                              {/* Edit button */}
+                                              <button
+                                                onClick={() => {
+                                                  setEditingMessageId(threadMsg.id);
+                                                  setEditingMessageText(threadMsg.text || threadMsg.content || '');
+                                                  setShowEditDialog(true);
+                                                }}
+                                                className="flex items-center justify-center w-6 h-6 rounded-full transition-colors bg-gray-100 hover:bg-gray-200 text-gray-600"
+                                                title="Edit message"
+                                              >
+                                                <Edit className="h-4 w-4" />
+                                              </button>
+                                            </div>
+                                          )}
                                         </div>
                                       </div>
                                     );
@@ -2477,6 +2514,99 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                   className="flex-1"
                 >
                   {isForwarding ? 'Forwarding...' : 'Forward'}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Edit Message Dialog */}
+      {showEditDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <Card className="w-full max-w-md mx-auto">
+            <div className="p-6 space-y-4">
+              <h2 className="text-xl font-bold">Edit Message</h2>
+              
+              <textarea
+                value={editingMessageText}
+                onChange={(e) => setEditingMessageText(e.target.value)}
+                className="w-full h-32 p-3 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                placeholder="Edit your message..."
+              />
+              
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => {
+                    setShowEditDialog(false);
+                    setEditingMessageId(null);
+                    setEditingMessageText('');
+                  }}
+                  variant="outline"
+                  className="flex-1"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    if (!editingMessageId || !editingMessageText.trim()) {
+                      toast({
+                        title: "Error",
+                        description: "Message text cannot be empty",
+                        variant: "destructive"
+                      });
+                      return;
+                    }
+                    
+                    setIsEditing(true);
+                    try {
+                      const response = await fetch('http://localhost:8000/chat/edit-message', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${localStorage.getItem('access_token')}`
+                        },
+                        body: JSON.stringify({
+                          message_id: editingMessageId,
+                          text: editingMessageText.trim()
+                        })
+                      });
+                      
+                      const data = await response.json();
+                      if (!response.ok) {
+                        throw new Error(data.detail || 'Failed to edit message');
+                      }
+                      
+                      // Update the message in the local state
+                      setMessages(messages.map(msg => 
+                        msg.id === editingMessageId 
+                          ? { ...msg, text: editingMessageText.trim(), content: editingMessageText.trim() }
+                          : msg
+                      ));
+                      
+                      toast({
+                        title: "Success",
+                        description: "Message edited successfully"
+                      });
+                      
+                      setShowEditDialog(false);
+                      setEditingMessageId(null);
+                      setEditingMessageText('');
+                    } catch (error) {
+                      console.error('Error editing message:', error);
+                      toast({
+                        title: "Error",
+                        description: error instanceof Error ? error.message : 'Failed to edit message',
+                        variant: "destructive"
+                      });
+                    } finally {
+                      setIsEditing(false);
+                    }
+                  }}
+                  disabled={!editingMessageText.trim() || isEditing}
+                  className="flex-1"
+                >
+                  {isEditing ? 'Editing...' : 'Edit'}
                 </Button>
               </div>
             </div>

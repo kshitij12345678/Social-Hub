@@ -1017,6 +1017,14 @@ async def get_general_messages(
                                         thread_timestamp = str(thread_timestamp)
                                     else:
                                         thread_timestamp = "2024-01-01T00:00:00.000Z"
+                                    # Determine if this thread message is from the current user
+                                    thread_user_username = thread_user_data.get("username", "")
+                                    thread_user_name = thread_user_data.get("name", "")
+                                    thread_is_own = (
+                                        thread_user_username == current_user.email.split('@')[0] or
+                                        thread_user_username == current_user.email.split('@')[0] or
+                                        thread_user_name == current_user.full_name
+                                    )
                                     
                                     thread_messages.append({
                                         "id": thread_msg.get("_id", ""),
@@ -1029,7 +1037,8 @@ async def get_general_messages(
                                         "timestamp": thread_timestamp,
                                         "edited_at": thread_msg.get("_updatedAt"),
                                         "reactions": thread_msg.get("reactions", {}),
-                                        "is_thread_message": True
+                                        "is_thread_message": True,
+                                        "isOwn": thread_is_own
                                     })
                     except Exception as e:
                         print(f"DEBUG: Failed to fetch thread messages for {msg.get('_id', '')}: {e}")
@@ -1083,7 +1092,9 @@ async def get_general_messages(
                     "id": msg.get("_id", f"msg-{i}"),
                     "sender": "System" if is_system else (user_data.get("name") or user_data.get("username", "Unknown")),
                     "content": msg.get("msg", ""),
+                    "text": msg.get("msg", ""),
                     "timestamp": timestamp,
+                    "edited_at": msg.get("_updatedAt") if msg.get("_updatedAt") else None,
                     "isOwn": is_own_message,
                     "avatar": None,  # Rocket.Chat doesn't provide avatar URLs directly
                     "type": "system" if is_system else "message",
@@ -1206,6 +1217,52 @@ async def forward_message(
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=f"Failed to forward message: {str(e)}")
+
+@app.post("/chat/edit-message")
+async def edit_message(
+    edit_data: dict,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Edit a message (only own messages)"""
+    try:
+        print(f"DEBUG: Editing message from user: {current_user.email}")
+        print(f"DEBUG: Edit data: {edit_data}")
+        
+        message_id = edit_data.get("message_id", "")
+        new_text = edit_data.get("text", "")
+        
+        if not message_id or not new_text:
+            raise HTTPException(status_code=400, detail="Missing required fields: message_id, text")
+        
+        # Get user-specific headers for API calls
+        user_headers = await rocket_client.get_user_headers(
+            social_hub_user_email=current_user.email,
+            social_hub_user_name=current_user.full_name,
+            social_hub_user_id=str(current_user.id),
+            db_session=db
+        )
+        
+        if not user_headers:
+            raise HTTPException(status_code=401, detail="Failed to get user authentication headers")
+        
+        # Use Rocket.Chat's edit API
+        result = await rocket_client.edit_message(message_id, new_text, user_headers)
+        
+        print(f"DEBUG: Edit result: {result}")
+        
+        if result.get('success'):
+            return {"success": True, "message": "Message edited successfully"}
+        else:
+            raise HTTPException(status_code=500, detail=f"Failed to edit message: {result.get('error', 'Unknown error')}")
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error editing message: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Failed to edit message: {str(e)}")
 
 @app.get("/chat/forward-targets")
 async def get_forward_targets(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1366,6 +1423,15 @@ async def get_dm_messages(
                                 else:
                                     thread_timestamp = "2024-01-01T00:00:00.000Z"
                                 
+                                # Determine if this thread message is from the current user
+                                thread_message_username = thread_user_data.get("username", "")
+                                thread_message_name = thread_user_data.get("name", "")
+                                thread_is_own = (
+                                    thread_message_username == current_user.email.split('@')[0] or
+                                    thread_message_username == current_user.email.split('@')[0] or
+                                    thread_message_name == current_user.full_name
+                                )
+                                
                                 thread_messages.append({
                                     "id": thread_msg.get("_id", ""),
                                     "text": thread_msg.get("msg", ""),
@@ -1377,7 +1443,8 @@ async def get_dm_messages(
                                     "timestamp": thread_timestamp,
                                     "edited_at": thread_msg.get("_updatedAt"),
                                     "reactions": thread_msg.get("reactions", {}),
-                                    "is_thread_message": True
+                                    "is_thread_message": True,
+                                    "isOwn": thread_is_own
                                 })
                 except Exception as e:
                     print(f"DEBUG: Failed to fetch thread messages for {msg.get('_id', '')}: {e}")
@@ -1450,7 +1517,9 @@ async def get_dm_messages(
                 "id": msg.get("_id", f"dm-{i}"),
                 "sender": sender_name,
                 "content": msg.get("msg", ""),
+                "text": msg.get("msg", ""),
                 "timestamp": timestamp,
+                "edited_at": msg.get("editedAt") if msg.get("editedAt") else None,
                 "isOwn": is_own_message,
                 "avatar": None,
                 "type": "message",
@@ -1458,7 +1527,12 @@ async def get_dm_messages(
                 "thread_count": thread_count,
                 "thread_ts": msg.get("tmid"),
                 "thread_messages": thread_messages,  # Include thread messages
-                "attachments": attachments if attachments else None
+                "attachments": attachments if attachments else None,
+                "user": {
+                    "id": user_data.get("_id", ""),
+                    "username": user_data.get("username", ""),
+                    "name": user_data.get("name", "")
+                }
             }
             formatted_messages.append(formatted_message)
         
@@ -2153,6 +2227,15 @@ async def get_channel_messages_by_id(
                                 else:
                                     thread_timestamp = "2024-01-01T00:00:00.000Z"
                                 
+                                # Determine if this thread message is from the current user
+                                thread_message_username = thread_user_data.get("username", "")
+                                thread_message_name = thread_user_data.get("name", "")
+                                thread_is_own = (
+                                    thread_message_username == current_user.email.split('@')[0] or
+                                    thread_message_username == current_user.email.split('@')[0] or
+                                    thread_message_name == current_user.full_name
+                                )
+                                
                                 thread_messages.append({
                                     "id": thread_msg.get("_id", ""),
                                     "text": thread_msg.get("msg", ""),
@@ -2164,7 +2247,8 @@ async def get_channel_messages_by_id(
                                     "timestamp": thread_timestamp,
                                     "edited_at": thread_msg.get("_updatedAt"),
                                     "reactions": thread_msg.get("reactions", {}),
-                                    "is_thread_message": True
+                                    "is_thread_message": True,
+                                    "isOwn": thread_is_own
                                 })
                 except Exception as e:
                     print(f"DEBUG: Failed to fetch thread messages for {msg.get('_id', '')}: {e}")
@@ -2330,6 +2414,31 @@ async def get_channel_messages_by_id(
                         print(f"DEBUG: Attachment data: {attachment_data}")
                         attachments.append(attachment_data)
             
+            # Determine if this message is from the current user
+            current_user_username = current_user.email.split('@')[0]  # e.g., 'ankush8'
+            message_username = user_data.get("username", "")
+            message_name = user_data.get("name", "")
+            
+            is_own_message = not is_system_event and (
+                message_username == current_user_username or
+                message_username == current_user.email.split('@')[0] or
+                message_name == current_user.full_name
+            )
+            
+            # Debug logging for message ownership
+            print(f"🔍 Message ownership check for message {msg.get('_id', 'unknown')}:")
+            print(f"   Current user email: {current_user.email}")
+            print(f"   Current user username: {current_user_username}")
+            print(f"   Current user full name: {current_user.full_name}")
+            print(f"   Raw user_data: {user_data}")
+            print(f"   Message username: '{message_username}'")
+            print(f"   Message name: '{message_name}'")
+            print(f"   Is system message: {is_system_event}")
+            print(f"   Is own message: {is_own_message}")
+            print(f"   Username match: {message_username == current_user_username}")
+            print(f"   Name match: {message_name == current_user.full_name}")
+            print("---")
+            
             formatted_message = {
                 "id": msg.get("_id", f"msg-{i}"),
                 "text": message_text,
@@ -2339,13 +2448,14 @@ async def get_channel_messages_by_id(
                     "name": user_data.get("name") or user_data.get("username", "Unknown User")
                 },
                 "timestamp": timestamp,
-                "edited_at": msg.get("_updatedAt") if msg.get("_updatedAt") else None,
+                "edited_at": msg.get("editedAt") if msg.get("editedAt") else None,
                 "reactions": reactions,
                 "thread_count": thread_count,
                 "thread_ts": msg.get("tmid"),
                 "thread_messages": thread_messages,  # Include thread messages
                 "type": "system" if is_system_event else "message",
-                "attachments": attachments if attachments else None
+                "attachments": attachments if attachments else None,
+                "isOwn": is_own_message
             }
             formatted_messages.append(formatted_message)
         
