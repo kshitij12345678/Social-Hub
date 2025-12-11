@@ -872,7 +872,11 @@ class RocketChatClient:
                 "😢": ":cry:",
                 "😡": ":rage:",
                 "🔥": ":fire:",
-                "💯": ":100:"
+                "💯": ":100:",
+                "🎉": ":tada:",
+                "👏": ":clap:",
+                "🤔": ":thinking:",
+                "😍": ":heart_eyes:"
             }
             
             # Use colon format if available, otherwise use the emoji as-is
@@ -914,7 +918,11 @@ class RocketChatClient:
                 "😢": ":cry:",
                 "😡": ":rage:",
                 "🔥": ":fire:",
-                "💯": ":100:"
+                "💯": ":100:",
+                "🎉": ":tada:",
+                "👏": ":clap:",
+                "🤔": ":thinking:",
+                "😍": ":heart_eyes:"
             }
             
             # Use colon format if available, otherwise use the emoji as-is
