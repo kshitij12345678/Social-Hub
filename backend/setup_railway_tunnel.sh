@@ -40,3 +40,4 @@ echo ""
 read -p "Press Enter to start the tunnel..."
 railway connect postgres
 
+

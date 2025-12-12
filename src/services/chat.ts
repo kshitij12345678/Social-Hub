@@ -324,7 +324,7 @@ class ChatService {
     text: string,
     channelType: string = "channel",
     attachments: any[] = []
-  ): Promise<{ success: boolean; message: string }> {
+  ): Promise<{ success: boolean; message: string; message_id?: string }> {
     const params = new URLSearchParams({
       channel_type: channelType,
     });
@@ -336,7 +336,7 @@ class ChatService {
     
     console.log('DEBUG: Service sending message with:', requestBody);
     
-    return this.request<{ success: boolean; message: string }>(`/api/rocket-chat/send-channel-message/${encodeURIComponent(channelIdentifier)}?${params}`, {
+    return this.request<{ success: boolean; message: string; message_id?: string }>(`/api/rocket-chat/send-channel-message/${encodeURIComponent(channelIdentifier)}?${params}`, {
       method: 'POST',
       body: JSON.stringify(requestBody),
     });
@@ -385,9 +385,9 @@ class ChatService {
   }
 
   // Send direct message to a user
-  async sendDirectMessage(username: string, text: string, attachments: any[] = []): Promise<{ success: boolean; message: string }> {
+  async sendDirectMessage(username: string, text: string, attachments: any[] = []): Promise<{ success: boolean; message: string; message_id?: string }> {
     try {
-      return this.request<{ success: boolean; message: string }>('/api/rocket-chat/send-dm', {
+      return this.request<{ success: boolean; message: string; message_id?: string }>('/api/rocket-chat/send-dm', {
         method: 'POST',
         body: JSON.stringify({ username, message: text, attachments }),
       });
@@ -468,8 +468,8 @@ class ChatService {
   }
 
   // Send a message in a thread
-  async sendThreadMessage(channelName: string, parentMessageId: string, text: string): Promise<{ success: boolean; message: string }> {
-    return this.request<{ success: boolean; message: string }>('/api/rocket-chat/send-thread-message', {
+  async sendThreadMessage(channelName: string, parentMessageId: string, text: string): Promise<{ success: boolean; message: string | { _id?: string; [key: string]: any } }> {
+    return this.request<{ success: boolean; message: string | { _id?: string; [key: string]: any } }>('/api/rocket-chat/send-thread-message', {
       method: 'POST',
       body: JSON.stringify({ 
         roomId: channelName, 

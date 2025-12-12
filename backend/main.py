@@ -1798,7 +1798,18 @@ async def send_dm_message(
         result = await rocket_client.send_direct_message(username, message, user_headers, attachments)
         
         if result.get("success"):
-            return {"success": True, "message": "DM sent successfully"}
+            # Extract the Rocket.Chat message object which contains the _id
+            message_obj = result.get('message', {})
+            message_id = None
+            if isinstance(message_obj, dict):
+                message_id = message_obj.get('_id')
+                print(f"✅ Extracted message ID from DM: {message_id}")
+            
+            return {
+                "success": True, 
+                "message": "DM sent successfully",
+                "message_id": message_id
+            }
         else:
             raise HTTPException(status_code=500, detail=f"Failed to send DM: {result.get('error', 'Unknown error')}")
             
@@ -2648,7 +2659,18 @@ async def send_message_to_any_channel(
         print(f"DEBUG: Result keys: {result.keys() if isinstance(result, dict) else 'Not a dict'}")
         
         if result.get('success'):
-            return {"success": True, "message": "Message sent successfully"}
+            # Extract the Rocket.Chat message object which contains the _id
+            message_obj = result.get('message', {})
+            message_id = None
+            if isinstance(message_obj, dict):
+                message_id = message_obj.get('_id')
+                print(f"✅ Extracted message ID: {message_id}")
+            
+            return {
+                "success": True, 
+                "message": "Message sent successfully",
+                "message_id": message_id
+            }
         else:
             error_msg = result.get('error', 'Unknown error')
             print(f"❌ Failed to send message: '{error_msg}' (type: {type(error_msg)})")
@@ -2829,7 +2851,18 @@ async def send_thread_message(
         print(f"DEBUG: send_thread_message result: {result}")
         
         if result.get('success'):
-            return {"success": True, "message": "Thread message sent successfully"}
+            # Extract the message object from the result
+            sent_message = result.get('message', {})
+            print(f"DEBUG: Extracted sent_message: {sent_message}")
+            
+            if isinstance(sent_message, dict):
+                message_id = sent_message.get('_id')
+                print(f"DEBUG: Extracted message_id from thread message: {message_id}")
+            
+            return {
+                "success": True, 
+                "message": sent_message if isinstance(sent_message, dict) else {}
+            }
         else:
             error_msg = result.get('error', 'Unknown error')
             print(f"❌ Thread message failed: {error_msg}")

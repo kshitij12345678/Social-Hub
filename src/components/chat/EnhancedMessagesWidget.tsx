@@ -632,6 +632,10 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
         }
       }
 
+      // Capture the real message ID from the send response
+      let realMessageId: string | undefined;
+      const tempMessageId = Date.now().toString();
+
       if (selectedConversation.type === 'direct_message' && selectedConversation.other_user) {
         // Use the conversation name (Rocket.Chat username) for sending DMs
         const username = selectedConversation.name || selectedConversation.other_user;
@@ -643,7 +647,14 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
           messageContent: messageContent,
           attachments: uploadedFiles
         });
-        await rocketChatService.sendDirectMessage(username, messageContent, uploadedFiles);
+        const dmResponse = await rocketChatService.sendDirectMessage(username, messageContent, uploadedFiles);
+        console.log('📨 DM Response:', dmResponse);
+        
+        // If we got a real message ID from the backend, use it
+        if (dmResponse.message_id) {
+          console.log('✅ Got message ID from DM response:', dmResponse.message_id);
+          realMessageId = dmResponse.message_id;
+        }
       } else {
         // For private groups, use the rocket_chat_group_id if available, otherwise use name
         let channelIdentifier;
@@ -678,17 +689,24 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
           channelType: selectedConversation.type === 'private_group' ? 'group' : 'channel',
           attachments: uploadedFiles
         });
-        await rocketChatService.sendRocketChatChannelMessage(
+        const channelResponse = await rocketChatService.sendRocketChatChannelMessage(
           channelIdentifier,
           messageContent,
           selectedConversation.type === 'private_group' ? 'group' : 'channel',
           uploadedFiles
         );
+        console.log('📤 Channel Response:', channelResponse);
+        
+        // If we got a real message ID from the backend, use it
+        if (channelResponse.message_id) {
+          console.log('✅ Got message ID from channel response:', channelResponse.message_id);
+          realMessageId = channelResponse.message_id;
+        }
       }
       
       // Add the sent message to the messages array instead of reloading
       const newMessageObj: ChatMessage = {
-        id: Date.now().toString(), // Temporary ID
+        id: realMessageId || tempMessageId, // Use real ID if available, otherwise temporary
         text: messageContent,
         content: messageContent,
         user: {
@@ -982,13 +1000,27 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
       console.log('DEBUG: Using room identifier:', roomIdentifier);
       console.log('DEBUG: Parent message ID:', parentMessageId);
       console.log('DEBUG: Reply text:', replyText);
-      await rocketChatService.sendThreadMessage(roomIdentifier || '', parentMessageId, replyText);
+      const threadResponse = await rocketChatService.sendThreadMessage(roomIdentifier || '', parentMessageId, replyText);
+      console.log('DEBUG: Thread message response:', threadResponse);
+      
       setThreadReplyText(prev => ({ ...prev, [parentMessageId]: '' }));
+      
+      // Capture the real message ID if available
+      let realThreadMessageId: string | undefined;
+      if (threadResponse && typeof threadResponse === 'object') {
+        const message = (threadResponse as any).message;
+        if (message && typeof message === 'object' && message._id) {
+          realThreadMessageId = message._id;
+          console.log('✅ Got real thread message ID from backend:', realThreadMessageId);
+        }
+      }
       
       // Add the thread message to local state immediately (optimistic update)
       console.log('🔄 Adding thread message to local state optimistically');
+      const tempThreadMessageId = Date.now().toString();
       const newThreadMessage: ChatMessage = {
-        id: Date.now().toString(), // Temporary ID
+        id: realThreadMessageId || tempThreadMessageId, // Use real ID if available
+        _id: realThreadMessageId, // Store Rocket.Chat ID
         text: replyText,
         content: replyText,
         user: {
@@ -1735,8 +1767,8 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                   <img 
                                                     src={imageUrl} 
                                                     alt={attachment.title || attachment.filename || 'Image'} 
-                                                    className="max-w-2xl rounded-lg border border-gray-200"
-                                                    style={{ maxHeight: '600px', width: 'auto' }}
+                                                    className="rounded-lg border border-gray-200"
+                                                    style={{ maxHeight: '415px', maxWidth: '415px', width: 'auto', height: 'auto' }}
                                                     onError={(e) => {
                                                       console.error('❌ Image failed to load:', imageUrl);
                                                       // Try the other URL if one fails
