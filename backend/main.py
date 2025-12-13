@@ -2412,7 +2412,7 @@ async def get_channel_messages_by_id(
             
             # Check if this is a system event (like "user joined")
             event_type = msg.get("t")
-            is_system_event = event_type and event_type in ["subscription-role-added", "uj", "ul", "r", "au", "ru"]  # user_joined, user_left, room_changed, user_added, user_removed
+            is_system_event = event_type and event_type in ["subscription-role-added", "uj", "ul", "r", "au", "ru","subscription-role-removed"]  # user_joined, user_left, room_changed, user_added, user_removed
             
             # Get message text - handle system events differently
             message_text = msg.get("msg", "")
@@ -2433,7 +2433,9 @@ async def get_channel_messages_by_id(
                     message_text = f"{message_text} was removed"
                 elif event_type == "subscription-role-added":
                     message_text = f"{message_text} is now an owner of the group"
-
+                elif event_type == "subscription-role-removed":
+                    message_text = f"{message_text} is no longer an owner"
+                
                 print(f"DEBUG: Generated custom message: '{message_text}'")
             
             # Handle owner promotion API call for subscription-role-added events
