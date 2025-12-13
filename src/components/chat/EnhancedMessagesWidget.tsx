@@ -1238,7 +1238,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
 
   return (
     <ResponsiveLayout>
-      <div className="max-w-7xl mx-auto h-[calc(100vh-120px)] p-4">
+      <div className="w-full h-[calc(100vh-120px)] p-4">
         <div className="grid grid-cols-1 md:grid-cols-12 gap-4 h-full">
           {/* Conversations List Sidebar */}
           <div className="md:col-span-4 lg:col-span-3">
@@ -1452,7 +1452,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
           </div>
 
           {/* Chat Window */}
-          <div className="md:col-span-8 lg:col-span-9">
+          <div className="md:col-span-7 lg:col-span-8">
             {selectedConversation ? (
               <div className="h-full bg-card rounded-lg border flex flex-col">
                 {/* Chat Header */}
