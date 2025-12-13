@@ -1152,7 +1152,15 @@ class RocketChatClient:
                     result = post_response.json()
                     print(f"DEBUG: Rocket.Chat forward result: {result}")
                     if result.get('success'):
-                        return {"success": True, "message": "Message forwarded successfully"}
+                        # Return the forwarded message with room and message ID
+                        forwarded_msg = result.get('message', {})
+                        return {
+                            "success": True, 
+                            "message": "Message forwarded successfully",
+                            "forwarded_message": forwarded_msg,
+                            "forwarded_message_id": forwarded_msg.get('_id'),
+                            "target_room_id": target_room_id
+                        }
                     else:
                         error_msg = result.get('error', 'Unknown error')
                         print(f"❌ Rocket.Chat error: {error_msg}")

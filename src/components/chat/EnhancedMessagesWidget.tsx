@@ -2135,8 +2135,15 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                   message_id: message.id,
                                                 };
                                                 
-                                                // For DMs, add username instead of room_id
-                                                if (selectedConversation?.type === 'direct_message') {
+                                                // Check if this is a forwarded message
+                                                const storedRoomId = localStorage.getItem(`fwd_msg_room_${message.id}`);
+                                                
+                                                if (storedRoomId) {
+                                                  // This is a forwarded message, use the stored room ID
+                                                  deleteBody.room_id = storedRoomId;
+                                                  console.log('🗑️ Deleting forwarded message from room:', storedRoomId);
+                                                } else if (selectedConversation?.type === 'direct_message') {
+                                                  // For DMs, add username instead of room_id
                                                   const dmUsername = selectedConversation?.name || selectedConversation?.other_user || '';
                                                   deleteBody.username = dmUsername;
                                                   console.log('🗑️ Deleting DM message from conversation with:', dmUsername);
@@ -2828,7 +2835,16 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                         throw new Error(data.detail || 'Failed to forward message');
                       }
                       
-                      toast({
+                      // Store the forwarded message with room information for later operations (delete, edit, etc.)
+                      if (data.forwarded_message_id && data.target_room_id) {
+                        console.log('✅ Forwarded message created with ID:', data.forwarded_message_id);
+                        console.log('📍 Target room ID:', data.target_room_id);
+                        
+                        // Store the mapping of forwarded message ID to its room ID
+                        // This will be used when deleting/editing the forwarded message
+                        localStorage.setItem(`fwd_msg_room_${data.forwarded_message_id}`, data.target_room_id);
+                      }
+                                            toast({
                         title: "Success",
                         description: `Message forwarded to ${forwardingTo.display_name || forwardingTo.name}`
                       });

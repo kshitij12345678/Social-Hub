@@ -1259,7 +1259,14 @@ async def forward_message(
         print(f"DEBUG: Forward result: {result}")
         
         if result.get('success'):
-            return {"success": True, "message": "Message forwarded successfully"}
+            # Pass the forwarded message ID and target room ID back to frontend
+            return {
+                "success": True, 
+                "message": "Message forwarded successfully",
+                "forwarded_message_id": result.get('forwarded_message_id'),
+                "target_room_id": target_room_id,
+                "forwarded_message": result.get('forwarded_message')
+            }
         else:
             raise HTTPException(status_code=500, detail=f"Failed to forward message: {result.get('error', 'Unknown error')}")
             
@@ -1323,9 +1330,9 @@ async def get_forward_targets(current_user: User = Depends(get_current_user), db
     try:
         print(f"DEBUG: Getting forward targets for user: {current_user.email}")
         
-        # Get all groups from database
-        groups = db.query(Group).all()
-        print(f"DEBUG: Found {len(groups)} groups")
+        # Get only groups where user is a member
+        groups = get_user_groups(db, current_user.id)
+        print(f"DEBUG: Found {len(groups)} groups where user is a member")
         
         group_list = []
         for group in groups:
