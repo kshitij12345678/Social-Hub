@@ -590,6 +590,47 @@ class RocketChatClient:
             print(f"Exception adding owner to group: {e}")
             return {"success": False, "error": str(e)}
 
+    async def remove_owner_from_group(self, group_id: str, username: str, user_headers: Dict = None) -> Dict:
+        """Remove a user from owner status in a Rocket.Chat group"""
+        try:
+            if not user_headers:
+                print("❌ User headers required for removing owner status from group")
+                return {"success": False, "error": "User authentication required"}
+            
+            owner_data = {
+                "roomId": group_id,
+                "username": username
+            }
+            
+            print(f"Removing owner '{username}' from group '{group_id}'")
+            
+            async with httpx.AsyncClient(timeout=30.0) as client:
+                response = await client.post(
+                    f"{self.base_url}/api/v1/groups.removeOwner",
+                    headers=user_headers,
+                    json=owner_data
+                )
+                
+                print(f"Response status: {response.status_code}")
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    if result.get('success'):
+                        print(f"✅ Successfully removed user '{username}' from owner status in group")
+                        return {"success": True, "group": result.get('group', {})}
+                    else:
+                        error_msg = result.get('error', 'Unknown error')
+                        print(f"❌ Failed to remove owner: {error_msg}")
+                        return {"success": False, "error": error_msg}
+                else:
+                    error_text = response.text
+                    print(f"❌ Failed to remove owner - HTTP {response.status_code}: {error_text}")
+                    return {"success": False, "error": f"HTTP {response.status_code}: {error_text}"}
+                    
+        except Exception as e:
+            print(f"Exception removing owner from group: {e}")
+            return {"success": False, "error": str(e)}
+
     async def send_message_to_channel(self, channel_name: str, text: str, user_headers: Dict = None, attachments: List[Dict] = None, channel_type: str = "channel") -> Dict:
         """Send message to a channel or group with optional file attachments"""
         try:

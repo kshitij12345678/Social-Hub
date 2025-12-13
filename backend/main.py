@@ -3798,6 +3798,111 @@ async def set_member_as_owner(
         print(f"❌ Error setting member as owner: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to set member as owner: {str(e)}")
 
+@app.post("/groups/{group_id}/members/{member_id}/remove-owner")
+async def remove_member_as_owner(
+    group_id: int,
+    member_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Remove owner status from a group member (group creator only)"""
+    try:
+        print(f"\n🔐 REMOVE OWNER REQUEST: group_id={group_id}, member_id={member_id}, current_user={current_user.email}")
+        
+        group = get_group_by_id(db, group_id)
+        if not group:
+            raise HTTPException(status_code=404, detail="Group not found")
+        
+        print(f"✅ Group found: {group.name} (creator_id: {group.created_by})")
+        
+        # Only creator can remove owners
+        if group.created_by != current_user.id:
+            print(f"❌ User {current_user.id} is not the creator ({group.created_by})")
+            raise HTTPException(status_code=403, detail="Access denied: Only the group creator can remove owners")
+        
+        # Get the group member
+        member = db.query(GroupMember).filter(
+            GroupMember.id == member_id,
+            GroupMember.group_id == group_id
+        ).first()
+        
+        if not member:
+            print(f"❌ Member {member_id} not found in group {group_id}")
+            raise HTTPException(status_code=404, detail="Member not found in this group")
+        
+        print(f"✅ Member found: user_id={member.user_id}, current_is_owner={member.is_owner}")
+        
+        # Can't remove creator's owner status
+        if member.user_id == group.created_by:
+            raise HTTPException(status_code=400, detail="Cannot remove owner status from the group creator")
+        
+        # Check if member is actually an owner
+        if not member.is_owner:
+            raise HTTPException(status_code=400, detail="Member is not currently an owner")
+        
+        # Get the user
+        user_to_demote = get_user_by_id(db, member.user_id)
+        if not user_to_demote:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        print(f"🔄 Removing {user_to_demote.email} from owner status in group {group.rocket_chat_group_id}")
+        
+        # If the group has a Rocket.Chat group ID, remove from owner in Rocket.Chat first
+        if group.rocket_chat_group_id:
+            print(f"🔄 Removing user from owner status in Rocket.Chat. Group ID: {group.rocket_chat_group_id}, User: {user_to_demote.email}")
+            
+            # Get user-specific headers for Rocket.Chat API calls
+            user_headers = await rocket_client.get_user_headers(
+                social_hub_user_email=current_user.email,
+                social_hub_user_name=current_user.full_name,
+                social_hub_user_id=str(current_user.id),
+                db_session=db
+            )
+            
+            # Get the Rocket.Chat username
+            rocket_username = user_to_demote.email.split('@')[0]
+            
+            print(f"📋 Calling remove_owner_from_group with username: {rocket_username}")
+            
+            # Remove from owner in Rocket.Chat
+            owner_result = await rocket_client.remove_owner_from_group(
+                group_id=group.rocket_chat_group_id,
+                username=rocket_username,
+                user_headers=user_headers
+            )
+            
+            print(f"🚀 Rocket.Chat response: {owner_result}")
+            
+            if owner_result.get('success'):
+                print(f"✅ Successfully removed user from owner status in Rocket.Chat")
+            else:
+                error_msg = owner_result.get('error', 'Unknown error')
+                print(f"⚠️ Warning: Failed to remove user from owner status in Rocket.Chat: {error_msg}")
+                # Continue with local removal even if Rocket.Chat fails
+        else:
+            print(f"ℹ️ Group has no Rocket.Chat ID, skipping Rocket.Chat removal")
+        
+        # Update local database
+        print(f"💾 Updating database: member.is_owner = False")
+        print(f"DEBUG: Current member.is_owner value before update: {member.is_owner}")
+        member.is_owner = False
+        db.add(member)  # Explicitly add the object to the session
+        db.commit()
+        db.refresh(member)  # Refresh to get the updated value from database
+        print(f"DEBUG: Member.is_owner value after update and refresh: {member.is_owner}")
+        
+        # Verify the update in database
+        verify_member = db.query(GroupMember).filter(GroupMember.id == member_id).first()
+        print(f"✅ Verified in DB: member.is_owner = {verify_member.is_owner if verify_member else 'NOT FOUND'}")
+        
+        print(f"✅ Successfully removed user from owner status in local database")
+        return {"message": "Member removed from owner status successfully"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error removing member as owner: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to remove member as owner: {str(e)}")
+
 @app.get("/groups/{group_id}/members", response_model=List[GroupMemberResponse])
 def get_group_members_endpoint(
     group_id: int,

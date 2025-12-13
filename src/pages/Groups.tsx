@@ -520,6 +520,56 @@ const Groups: React.FC = () => {
     }
   };
 
+  const removeMemberAsOwner = async (memberId: number, memberUserId: number) => {
+    if (!selectedGroup) return;
+
+    try {
+      const token = localStorage.getItem('access_token');
+      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}/members/${memberId}/remove-owner`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('✅ Remove owner response:', result);
+        
+        // Update the member in state immediately
+        const updatedMembers = groupMembers.map((member) =>
+          member.id === memberId ? { ...member, is_owner: false } : member
+        );
+        setGroupMembers(updatedMembers);
+        
+        toast({
+          title: "Success",
+          description: "Member removed from owner status successfully",
+        });
+        
+        // Reload groups to sync up-to-date data
+        loadGroups();
+      } else {
+        const error = await response.json();
+        console.error('❌ Remove owner error:', error);
+        toast({
+          title: "Error",
+          description: error.detail || "Failed to remove member from owner status",
+          variant: "destructive",
+        });
+      }
+    } catch (error) {
+      console.error('Error removing member from owner:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove member from owner status",
+        variant: "destructive",
+      });
+    }
+  };
+
+
   if (loading) {
     return (
       <ResponsiveLayout>
@@ -939,16 +989,26 @@ const Groups: React.FC = () => {
                         // Creator - no actions
                         <div />
                       ) : member.is_owner ? (
-                        // Owner - show remove owner button
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          onClick={() => removeMemberFromGroup(member.user_id)}
-                          className="flex-shrink-0"
-                        >
-                          <UserMinus className="w-4 h-4 mr-1" />
-                          Remove
-                        </Button>
+                        // Owner - show remove owner button and remove button
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => removeMemberAsOwner(member.id, member.user_id)}
+                            className="text-orange-600 border-orange-600 hover:bg-orange-50 flex-shrink-0"
+                          >
+                            Remove from Owner
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="destructive"
+                            onClick={() => removeMemberFromGroup(member.user_id)}
+                            className="flex-shrink-0"
+                          >
+                            <UserMinus className="w-4 h-4 mr-1" />
+                            Remove
+                          </Button>
+                        </div>
                       ) : (
                         // Regular member - show Set Owner and Remove buttons
                         <div className="flex gap-2">
