@@ -1875,7 +1875,20 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                         
                                         {/* Enhanced Reaction Picker */}
                                         {showReactionPicker === message.id && (
-                                          <div className="absolute top-full left-0 mt-1 bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-10 min-w-[200px]">
+                                          <div className="absolute bg-white border border-gray-200 rounded-lg shadow-lg p-3 z-50 min-w-[240px]" style={{
+                                            ...(isOwnMessage ? {
+                                              bottom: 'auto',
+                                              top: '-170px',
+                                              right: '40px',
+                                              left: 'auto'
+                                            } : {
+                                              top: 'full',
+                                              marginTop: '0.5rem',
+                                              left: 0,
+                                              right: 'auto'
+                                            }),
+                                            whiteSpace: 'nowrap'
+                                          }}>
                                             <div className="text-xs font-medium text-gray-600 mb-2">Quick Reactions</div>
                                             <div className="grid grid-cols-4 gap-1 mb-2">
                                               {['👍', '❤️', '😂', '😮', '😢', '😡', '🔥', '💯', '🎉', '👏', '🤔', '😍'].map((emoji) => (
@@ -2355,7 +2368,22 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 </button>
                                                 
                                                 {showReactionPicker === threadMsg.id && (
-                                                  <div className="absolute bottom-full mb-2 left-0 bg-white border rounded-lg shadow-lg p-2 z-50" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.5rem' }}>
+                                                  <div className="absolute bg-white border rounded-lg shadow-lg p-2 z-50" style={{ 
+                                                    display: 'grid', 
+                                                    gridTemplateColumns: 'repeat(4, 1fr)', 
+                                                    gap: '0.5rem',
+                                                    ...(isOwnThreadMessage ? {
+                                                      bottom: 'auto',
+                                                      top: '-150px',
+                                                      right: '-100px',
+                                                      left: 'auto'
+                                                    } : {
+                                                      top: 'full',
+                                                      marginTop: '0.5rem',
+                                                      left: 0,
+                                                      right: 'auto'
+                                                    })
+                                                  }}>
                                                     {['👍', '❤️', '😂', '😮', '😢', '😡', '🎉', '👏', '🤔', '😍'].map((emoji) => (
                                                       <button
                                                         key={emoji}
