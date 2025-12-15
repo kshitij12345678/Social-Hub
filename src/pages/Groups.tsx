@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import ResponsiveLayout from '@/components/layout/responsive-layout';
+import { API_BASE_URL } from '@/config/api';
 
 // Set the page title
 document.title = 'Private Group - Social Hub';
@@ -70,7 +71,7 @@ const Groups: React.FC = () => {
   const loadGroups = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/groups', {
+      const response = await fetch(`${API_BASE_URL}/groups`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -102,7 +103,7 @@ const Groups: React.FC = () => {
   const createGroup = async () => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch('http://localhost:8000/groups', {
+      const response = await fetch(`${API_BASE_URL}/groups`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -164,7 +165,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/users/search?query=${encodeURIComponent(query)}`, {
+      const response = await fetch(`${API_BASE_URL}/users/search?query=${encodeURIComponent(query)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -188,7 +189,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/users/search?query=${encodeURIComponent(query)}`, {
+      const response = await fetch(`${API_BASE_URL}/users/search?query=${encodeURIComponent(query)}`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -234,7 +235,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}/members`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${selectedGroup.id}/members`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -273,7 +274,7 @@ const Groups: React.FC = () => {
   const deleteGroup = async (groupId: number) => {
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${groupId}`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${groupId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -310,7 +311,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${groupId}/members/${user.id}`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${groupId}/members/${user.id}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -348,7 +349,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${selectedGroup.id}`, {
         method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -402,7 +403,7 @@ const Groups: React.FC = () => {
     setLoadingMembers(true);
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${groupId}/members`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${groupId}/members`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -436,7 +437,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}/members/${memberId}`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${selectedGroup.id}/members/${memberId}`, {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -476,7 +477,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}/members/${memberId}/set-owner`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${selectedGroup.id}/members/${memberId}/set-owner`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -525,7 +526,7 @@ const Groups: React.FC = () => {
 
     try {
       const token = localStorage.getItem('access_token');
-      const response = await fetch(`http://localhost:8000/groups/${selectedGroup.id}/members/${memberId}/remove-owner`, {
+      const response = await fetch(`${API_BASE_URL}/groups/${selectedGroup.id}/members/${memberId}/remove-owner`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

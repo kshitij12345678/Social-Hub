@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { API_BASE_URL } from '../config/api';
 
 interface User {
   id: string;
@@ -69,7 +70,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
 
       // Verify token with backend
       console.log('CheckAuth: Verifying token with backend...');
-      const response = await fetch('http://localhost:8000/auth/me', {
+      const response = await fetch(`${API_BASE_URL}/auth/me`, {
         headers: {
           'Authorization': `Bearer ${token}`
         }
@@ -123,7 +124,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       
       console.log('Register: Attempting registration with:', { email, name });
       
-      const response = await fetch('http://localhost:8000/auth/register', {
+      const response = await fetch(`${API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -174,7 +175,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       setError('');
       setIsLoading(true);
       
-      const response = await fetch('http://localhost:8000/auth/login', {
+      const response = await fetch(`${API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -249,9 +250,9 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         throw new Error('No authentication token found');
       }
 
-      console.log('UpdateProfile: Sending profile data:', profileData);
+      console.log('UpdateProfile: Sending data:', profileData);
       
-      const response = await fetch('http://localhost:8000/auth/profile', {
+      const response = await fetch(`${API_BASE_URL}/auth/profile`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -303,7 +304,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
       formData.append('file', file);
 
 
-      const response = await fetch('http://localhost:8000/auth/upload-profile-picture', {
+      const response = await fetch(`${API_BASE_URL}/auth/upload-profile-picture`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`

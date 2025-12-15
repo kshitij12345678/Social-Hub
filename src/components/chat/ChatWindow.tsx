@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
 import { chatService, type ChatMessage, type ChatConversation } from '@/services/chat';
 import { useToast } from '@/hooks/use-toast';
+import { API_BASE_URL } from '@/config/api';
 
 interface ChatWindowProps {
   selectedChannel: ChatConversation;
@@ -313,7 +314,7 @@ const ChatWindow: React.FC<ChatWindowProps> = ({ selectedChannel, isAuthenticate
       
       console.log('📌 Pinning message:', { messageId, roomId, roomName, roomType });
       
-      const response = await fetch('http://localhost:8000/chat/pin-message', {
+      const response = await fetch(`${API_BASE_URL}/chat/pin-message`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
