@@ -40,19 +40,8 @@ app.mount("/uploads", StaticFiles(directory="uploads"), name="uploads")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173", 
-        "http://localhost:3000", 
-        "http://localhost:8000", 
-        "http://localhost:8080",
-        "http://localhost:8081",  # Add the current frontend port
-        "https://accounts.google.com",  # Add Google's domain
-        # Add your frontend production URLs here after deployment
-        # "https://your-frontend.vercel.app",
-        # "https://your-frontend.netlify.app",
-        # "https://your-frontend.railway.app",
-    ],
-    allow_credentials=True,
+    allow_origins=["*"],  # Allow all origins for now - restrict after testing
+    allow_credentials=False,  # Must be False when allow_origins is "*"
     allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
     expose_headers=["*"],
