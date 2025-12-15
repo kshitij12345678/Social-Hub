@@ -85,7 +85,7 @@ async def register(user: UserRegistration, db: Session = Depends(get_db)):
     # Create new user
     try:
         db_user = create_user(db, user)
-        # Provision Rocket.Chat user
+        # Provision Rocket.Chat user (optional - don't fail registration if this fails)
         import asyncio
         try:
             # Use email as username (before @)
@@ -98,21 +98,11 @@ async def register(user: UserRegistration, db: Session = Depends(get_db)):
                 full_name=user.full_name
             )
             if not rc_result.get('success'):
-                # Rollback Social Hub user if Rocket.Chat fails
-                db.delete(db_user)
-                db.commit()
-                raise HTTPException(
-                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                    detail=f"Failed to create Rocket.Chat user: {rc_result.get('error', 'Unknown error')}"
-                )
+                print(f"⚠️  Warning: Failed to create Rocket.Chat user: {rc_result.get('error', 'Unknown error')}")
+                print("   User registration will continue without Rocket.Chat provisioning")
         except Exception as rc_exc:
-            # Rollback Social Hub user if Rocket.Chat fails
-            db.delete(db_user)
-            db.commit()
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to create Rocket.Chat user: {str(rc_exc)}"
-            )
+            print(f"⚠️  Warning: Failed to create Rocket.Chat user: {str(rc_exc)}")
+            print("   User registration will continue without Rocket.Chat provisioning")
 
         # Create access token
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
@@ -125,9 +115,12 @@ async def register(user: UserRegistration, db: Session = Depends(get_db)):
             "user": UserResponse.from_orm(db_user)
         }
     except Exception as e:
+        print(f"❌ Registration error: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create user"
+            detail=f"Failed to create user: {str(e)}"
         )
 
 # Login endpoint
