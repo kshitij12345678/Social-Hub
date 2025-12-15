@@ -9,7 +9,7 @@ import uuid
 # Database URL - using PostgreSQL
 DATABASE_URL = os.getenv(
     "DATABASE_URL",
-    "postgresql+psycopg://socialhub:socialhub_pass@localhost:5432/socialhub_db"
+    "postgresql://socialhub:socialhub_pass@localhost:5432/socialhub_db"
 )
 
 # Log which database is being used
