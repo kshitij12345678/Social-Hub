@@ -12,6 +12,10 @@ DATABASE_URL = os.getenv(
     "postgresql+psycopg://socialhub:socialhub_pass@localhost:5432/socialhub_db"
 )
 
+# Log which database is being used
+print(f"🔵 DATABASE_URL being used: {DATABASE_URL}")
+print(f"🔵 Using {'PRODUCTION' if 'railway' in DATABASE_URL or 'render' in DATABASE_URL or 'supabase' in DATABASE_URL else 'LOCAL'} database")
+
 # Create engine with connection pooling
 engine = create_engine(
     DATABASE_URL,

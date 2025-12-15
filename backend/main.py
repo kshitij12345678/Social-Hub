@@ -12,6 +12,10 @@ import httpx
 from pathlib import Path
 from google.oauth2 import id_token
 from google.auth.transport import requests
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from database import get_db, create_tables, User, ChatMessage, Group, GroupMember, PinnedMessage
 from schemas import UserRegistration, UserLogin, UserResponse, Token, Message, GoogleAuthRequest, UserProfileUpdate, ChatMessageCreate, ChatMessageResponse, GroupCreate, GroupUpdate, GroupMemberAdd, GroupMemberRemove, GroupResponse, GroupMemberResponse, UserSearchResponse
