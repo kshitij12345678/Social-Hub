@@ -15,6 +15,7 @@ import { UserSearchResult } from '@/services/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import remarkBreaks from 'remark-breaks';
+import { API_BASE_URL } from '@/config/api';
 
 // Helper function to format message timestamp
 const formatMessageTime = (timestamp: string) => {
@@ -220,7 +221,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
     try {
       console.log('📌 Loading pinned messages with room_id:', roomId);
       
-      const response = await fetch(`http://localhost:8000/chat/pinned-messages?room_id=${encodeURIComponent(roomId)}`, {
+      const response = await fetch(`${API_BASE_URL}/chat/pinned-messages?room_id=${encodeURIComponent(roomId)}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`
         }
@@ -1981,7 +1982,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 // Unpin the message
                                                 console.log('📌 Unpinning message:', { messageId: message.id, roomId, roomType });
                                                 
-                                                const response = await fetch('http://localhost:8000/chat/unpin-message', {
+                                                const response = await fetch(`${API_BASE_URL}/chat/unpin-message`, {
                                                   method: 'POST',
                                                   headers: {
                                                     'Content-Type': 'application/json',
@@ -2023,7 +2024,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 // Pin the message
                                                 console.log('📌 Pinning message:', { messageId: message.id, roomId, roomName, roomType });
                                                 
-                                                const response = await fetch('http://localhost:8000/chat/pin-message', {
+                                                const response = await fetch(`${API_BASE_URL}/chat/pin-message`, {
                                                   method: 'POST',
                                                   headers: {
                                                     'Content-Type': 'application/json',
@@ -2090,7 +2091,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                             
                                             // Load forward targets from backend
                                             try {
-                                              const response = await fetch('http://localhost:8000/chat/forward-targets', {
+                                              const response = await fetch(`${API_BASE_URL}/chat/forward-targets`, {
                                                 headers: {
                                                   'Authorization': `Bearer ${localStorage.getItem('access_token')}`
                                                 }
@@ -2180,7 +2181,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 
                                                 console.log('📤 Delete request body:', deleteBody);
                                                 
-                                                const response = await fetch('http://localhost:8000/chat/delete-message', {
+                                                const response = await fetch(`${API_BASE_URL}/chat/delete-message`, {
                                                   method: 'DELETE',
                                                   headers: {
                                                     'Content-Type': 'application/json',
@@ -2453,7 +2454,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                     
                                                     console.log('Deleting thread message:', deleteBody);
                                                     
-                                                    const response = await fetch('http://localhost:8000/chat/delete-message', {
+                                                    const response = await fetch(`${API_BASE_URL}/chat/delete-message`, {
                                                       method: 'DELETE',
                                                       headers: {
                                                         'Content-Type': 'application/json',
@@ -2849,7 +2850,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                       
                       console.log('Forwarding message:', forwardData);
                       
-                      const response = await fetch('http://localhost:8000/chat/forward-message', {
+                      const response = await fetch(`${API_BASE_URL}/chat/forward-message`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
@@ -2943,7 +2944,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                     
                     setIsEditing(true);
                     try {
-                      const response = await fetch('http://localhost:8000/chat/edit-message', {
+                      const response = await fetch(`${API_BASE_URL}/chat/edit-message`, {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',
