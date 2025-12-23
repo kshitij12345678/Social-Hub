@@ -1530,7 +1530,7 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                       ? `dm:${selectedConversation?.name || selectedConversation?.other_user || ''}`
                                       : selectedConversation?.id;
                                     
-                                    const response = await fetch('http://localhost:8000/chat/unpin-message', {
+                                    const response = await fetch(`${API_BASE_URL}/chat/unpin-message`, {
                                       method: 'POST',
                                       headers: {
                                         'Content-Type': 'application/json',
