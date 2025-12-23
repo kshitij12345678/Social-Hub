@@ -706,6 +706,28 @@ async def delete_message(
         )
         
         if result.get('success'):
+            # Also delete thread messages if this is a parent message
+            print(f"DEBUG: Checking for thread messages of {message_id}")
+            try:
+                thread_messages = await rocket_client.get_thread_messages(message_id, user_headers)
+                if thread_messages and len(thread_messages) > 0:
+                    print(f"DEBUG: Found {len(thread_messages)} thread messages to delete")
+                    for thread_msg in thread_messages:
+                        thread_id = thread_msg.get('_id')
+                        if thread_id:
+                            print(f"DEBUG: Deleting thread message {thread_id}")
+                            thread_result = await rocket_client.delete_message(thread_id, room_id=room_id, user_headers=user_headers)
+                            if thread_result.get("success"):
+                                print(f"✅ Deleted thread message {thread_id}")
+                            else:
+                                print(f"⚠️ Warning: Failed to delete thread message {thread_id}: {thread_result.get('error')}")
+                    print(f"✅ Processed {len(thread_messages)} thread messages")
+                else:
+                    print(f"DEBUG: No thread messages found for message {message_id}")
+            except Exception as e:
+                print(f"⚠️ Warning: Failed to delete thread messages: {e}")
+                # Continue even if thread deletion fails
+            
             # Also remove from pinned messages if it was pinned
             pinned_message = db.query(PinnedMessage).filter(
                 PinnedMessage.message_id == message_id
