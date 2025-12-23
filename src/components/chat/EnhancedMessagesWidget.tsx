@@ -2204,6 +2204,22 @@ const EnhancedMessagesWidget: React.FC<EnhancedMessagesWidgetProps> = ({ openGro
                                                 // Remove from messages array
                                                 setMessages(prev => prev.filter(msg => msg.id !== message.id));
                                                 
+                                                // Remove thread messages from state if this was a parent message
+                                                if (threadMessages[message.id]) {
+                                                  setThreadMessages(prev => {
+                                                    const newThreadMessages = { ...prev };
+                                                    delete newThreadMessages[message.id];
+                                                    return newThreadMessages;
+                                                  });
+                                                  
+                                                  // Close the thread if it was open
+                                                  setOpenThreads(prev => {
+                                                    const newSet = new Set(prev);
+                                                    newSet.delete(message.id);
+                                                    return newSet;
+                                                  });
+                                                }
+                                                
                                                 // Remove from pinned messages if it was pinned
                                                 if (pinnedMessageIds.has(message.id)) {
                                                   setPinnedMessageIds(prev => {
